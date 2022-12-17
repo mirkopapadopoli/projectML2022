@@ -16,3 +16,104 @@ Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by press
 When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
 
 The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r}
+#import library
+library(e1071)
+library(ggplot2)
+library(dplyr)
+library(Hmisc)
+```
+
+```{r}
+#import csv
+card.trans_data = read.csv("card_transdata.csv")
+```
+
+```{r}
+#conversion dataset
+card.trans_data$repeat_retailer = factor(card.trans_data$repeat_retailer)
+card.trans_data$used_chip = factor(card.trans_data$used_chip)
+card.trans_data$used_pin_number = factor(card.trans_data$used_pin_number)
+card.trans_data$online_order = factor(card.trans_data$online_order)
+card.trans_data$fraud = factor(card.trans_data$fraud)
+```
+
+```{r}
+card.trans_data %>%
+  filter( distance_from_home<max(distance_from_home) ) %>%
+  ggplot( aes(x=distance_from_home)) +
+    geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)
+```
+
+```{r}
+card.trans_data %>%
+  filter( distance_from_last_transaction<max(distance_from_last_transaction) ) %>%
+  ggplot( aes(x=distance_from_last_transaction)) +
+    geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)
+```
+
+```{r}
+card.trans_data %>%
+  filter( ratio_to_median_purchase_price<max(ratio_to_median_purchase_price) ) %>%
+  ggplot( aes(x=ratio_to_median_purchase_price)) +
+    geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)
+```
+
+```{r}
+ggplot(data.frame(card.trans_data$repeat_retailer), aes(x=card.trans_data$repeat_retailer)) +
+  geom_bar()
+```
+
+```{r}
+  ggplot(data.frame(card.trans_data$used_chip), aes(x=card.trans_data$used_chip)) +
+  geom_bar()
+```
+
+```{r}
+ggplot(data.frame(card.trans_data$used_pin_number), aes(x=card.trans_data$used_pin_number)) +
+  geom_bar()
+```
+
+```{r}
+ggplot(data.frame(card.trans_data$online_order), aes(x=card.trans_data$online_order)) +
+  geom_bar()
+```
+
+```{r}
+ggplot(data.frame(card.trans_data$fraud), aes(x=card.trans_data$fraud)) +
+  geom_bar()
+```
+
+```{r}
+sub < - subset(card.trans_data, select = c(distance_from_home, distance_from_last_transaction, ratio_to_median_purchase_price))
+card.trans_data %>%
+  filter( ratio_to_median_purchase_price<max(ratio_to_median_purchase_price) ) %>%
+  ggplot(sub, aes(x=sub, y=len)) + 
+  geom_boxplot()
+```
+
+```{r}
+describe(card.trans_data)
+```
+
+```{r}
+sizes <- c(35044,9)
+labels <- c("No Fraud","Fraud")
+
+ggplot(data=NULL, aes(x=labels, y=sizes, fill=labels)) +
+  geom_bar(stat="identity") +
+  labs(title="What Percentage of Transactions Using Chip and Password are Fraud Transactions?", fill="") +
+  theme(legend.position="none")
+```
+
+```{r}
+#preprocessing se duplicati e nulli
+s = duplicated(card.trans_data)
+sum(s)
+sum(is.na(card.trans_data))
+```
+
+```{r}
+
+```
