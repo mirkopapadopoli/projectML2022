@@ -116,4 +116,5 @@ sum(is.na(card.trans_data))
 
 ```{r}
 #modifica
+#modifica_1
 ```
