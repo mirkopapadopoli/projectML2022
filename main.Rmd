@@ -23,6 +23,7 @@ library(e1071)
 library(ggplot2)
 library(dplyr)
 library(Hmisc)
+library(corrplot)
 ```
 
 ```{r}
@@ -37,6 +38,10 @@ card.trans_data$used_chip = factor(card.trans_data$used_chip)
 card.trans_data$used_pin_number = factor(card.trans_data$used_pin_number)
 card.trans_data$online_order = factor(card.trans_data$online_order)
 card.trans_data$fraud = factor(card.trans_data$fraud)
+```
+
+```{r}
+head(card.trans_data)
 ```
 
 ```{r}
@@ -115,6 +120,49 @@ sum(is.na(card.trans_data))
 ```
 
 ```{r}
-#modifica
-#modifica_1
+#scatter matrix tra var continue
+my_cols <- c("#00AFBB", "#E7B800", "#FC4E07")  
+pairs(card.trans_data[,1:3], pch = 19,  cex = 0.5,
+      col = my_cols[card.trans_data$fraud],
+      lower.panel=NULL)
+```
+
+```{r}
+#corr matrix
+card.cor = cor(card.trans_data[,1:3])
+corrplot(card.cor)
+```
+
+```{r}
+#relazione se è frode usando torta
+sub.fraud = card.trans_data[which(card.trans_data$fraud == 1),]
+sub.nrow = nrow(sub.fraud)
+for(i in 4:7){
+  sub.zero = length(sub.fraud[which(sub.fraud[,i] == 0), i])
+  sub.one = sub.nrow - sub.zero
+  slices <- c(sub.zero, sub.one)
+  lbls <- c("0", "1")
+  pct <- round(slices/sum(slices)*100)
+  lbls <- paste(lbls, pct) # add percents to labels
+  lbls <- paste(lbls,"%",sep="") # ad % to labels
+  pie(slices,labels = lbls, col=rainbow(length(lbls)),
+   main=paste("Pct", i))
+}
+#se c'è stata una frode, sicuramente è perché non c'era il pin
+```
+
+```{r}
+sub.nofraud = card.trans_data[which(card.trans_data$fraud == 0),]
+sub.nonrow = nrow(sub.nofraud)
+for(i in 4:7){
+  sub.zero = length(sub.nofraud[which(sub.nofraud[,i] == 0), i])
+  sub.one = sub.nonrow - sub.zero
+  slices <- c(sub.zero, sub.one)
+  lbls <- c("0", "1")
+  pct <- round(slices/sum(slices)*100)
+  lbls <- paste(lbls, pct) # add percents to labels
+  lbls <- paste(lbls,"%",sep="") # ad % to labels
+  pie(slices,labels = lbls, col=rainbow(length(lbls)),
+   main=paste("Pct", i))
+}
 ```
