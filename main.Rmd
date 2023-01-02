@@ -157,5 +157,48 @@ for(i in 4:7){
 ```
 
 ```{r}
-colnames(card.trans_data)[3]
+quantile.cast <- function(column){
+  max = summary(column)[[6]]
+  first_q = summary(column)[[2]]
+  second_q = summary(column)[[3]]
+  third_q = summary(column)[[5]]
+  
+  q = c(first_q, second_q, third_q, max)
+  tmp_col = rep(0, length(column))
+  
+  for(i in c(1:3)){
+    indexes = which(column > q[i] && column <= q[i+1])
+    tmp_col[indexes] = i
+  }
+  
+  return(tmp_col)
+}
+```
+
+```{r}
+for(i in (1:3)){
+  qc = quantile.cast(card.trans_data[,i])
+  qcf = factor(qc, levels = c(0, 1, 2, 3))
+  card.trans_data[paste(colnames(card.trans_data)[i], "_discrete")] = qcf
+}
+```
+
+```{r}
+split.data = function(data, p = 0.7, s = 1){
+set.seed(s)
+index = sample(1:dim(data)[1])
+train = data[index[1:floor(dim(data)[1] * p)], ]
+test = data[index[((ceiling(dim(data)[1] * p)) + 1):dim(data)[1]], ]
+return(list(train=train, test=test)) } 
+```
+
+```{r}
+for (i in c(1:20)) {
+  allset= split.data(card.trans_data, s = i)
+  
+}
+```
+
+```{r}
+
 ```
