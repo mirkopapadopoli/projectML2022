@@ -5,6 +5,10 @@ library(ggplot2)
 library(dplyr)
 library(Hmisc)
 library(corrplot)
+library(caret)
+library(plyr)
+library(rpart)
+library(rattle)
 ```
 
 ```{r}
@@ -193,10 +197,38 @@ return(list(train=train, test=test)) }
 ```
 
 ```{r}
-for (i in c(1:20)) {
-  allset= split.data(card.trans_data, s = i)
-  
-}
+allset= split.data(card.trans_data, s = 300)
+trainset= allset$train
+testset= allset$test
+prop.table(table(trainset$fraud))
+```
+
+```{r}
+#zk = 1
+#while(zk <= 20){
+#  reducedset = split.data(trainset, s = zk)
+#  redtrainset = reducedset$train
+#  validationset = reducedset$test
+#  zk = zk+1
+#}
+```
+
+```{r}
+set.seed(35)
+train.tree = trainset[c(1:8)]
+modeltree = train(fraud ~ ., 
+                  data=train.tree, 
+                  method="rpart", 
+                  trControl = trainControl(method = "cv", 10))
+```
+
+```{r}
+modeltree
+```
+
+```{r}
+plot(modeltree$finalModel)
+text(modeltree$finalModel)
 ```
 
 ```{r}
