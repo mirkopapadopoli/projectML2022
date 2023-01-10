@@ -9,6 +9,7 @@ library(caret)
 library(plyr)
 library(rpart)
 library(rattle)
+library(neuralnet)
 ```
 
 ```{r}
@@ -183,7 +184,7 @@ quantile.cast <- function(column){
 for(i in (1:3)){
   qc = quantile.cast(card.trans_data[,i])
   qcf = factor(qc, levels = c(0, 1, 2, 3))
-  card.trans_data[paste(colnames(card.trans_data)[i], "_discrete")] = qcf
+  card.trans_data[paste(colnames(card.trans_data)[i],"_d", sep="")] = qcf
 }
 ```
 
@@ -204,22 +205,11 @@ prop.table(table(trainset$fraud))
 ```
 
 ```{r}
-#zk = 1
-#while(zk <= 20){
-#  reducedset = split.data(trainset, s = zk)
-#  redtrainset = reducedset$train
-#  validationset = reducedset$test
-#  zk = zk+1
-#}
-```
-
-```{r}
 set.seed(35)
 train.tree = trainset[c(1:8)]
-modeltree = train(fraud ~ ., 
+modeltree = rpart(fraud ~ ., 
                   data=train.tree, 
-                  method="rpart", 
-                  trControl = trainControl(method = "cv", 10))
+                  method = "class")
 ```
 
 ```{r}
@@ -227,8 +217,44 @@ modeltree
 ```
 
 ```{r}
-plot(modeltree$finalModel)
-text(modeltree$finalModel)
+fancyRpartPlot(modeltree)
+```
+
+```{r}
+test.tree = testset[c(1:7)]
+testset$Prediction <- predict(modeltree, test.tree, type = "class")
+```
+
+```{r}
+confusionmatrix.tree = table(testset$fraud, testset$Prediction)
+sum(diag(confusionmatrix.tree))/sum(confusionmatrix.tree)
+
+```
+
+```{r}
+printcp(modeltree)
+```
+
+```{r}
+plotcp(modeltree)
+```
+
+```{r}
+prunedDecisionTree = prune(modeltree, cp=.02)
+```
+
+```{r}
+fancyRpartPlot(prunedDecisionTree)
+```
+
+```{r}
+testset$PredictionPR <- predict(prunedDecisionTree, test.tree, type = "class")
+confusionmatrix.prunedtree = table(testset$fraud, testset$PredictionPR)
+sum(diag(confusionmatrix.prunedtree))/sum(confusionmatrix.prunedtree)
+```
+
+```{r}
+network = neuralnet(fraud ~ ., train.tree, hidden=4)
 ```
 
 ```{r}
