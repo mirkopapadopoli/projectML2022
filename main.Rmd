@@ -45,6 +45,34 @@ head(waterquality)
 ```
 
 ```{r}
+sapply(waterquality, class)
+```
+
+
+```{r}
+describe(waterquality)
+```
+
+
+```{r}
+dim(waterquality)
+```
+
+
+```{r}
+ggplot(data.frame(waterquality_pre$is_safe), aes(x=waterquality_pre$is_safe)) +
+  geom_bar()
+```
+```{r}
+waterquality_pre %>%
+  filter( uranium < max(uranium) ) %>%
+  ggplot( aes(x=uranium)) +
+    geom_density(fill="#69b3a2", color="#e9ecef")
+```
+
+
+
+```{r}
 waterquality %>%
   filter( distance_from_home<max(distance_from_home) ) %>%
   ggplot( aes(x=distance_from_home)) +
