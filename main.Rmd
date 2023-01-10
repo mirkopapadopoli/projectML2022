@@ -25,13 +25,18 @@ sum(is.na(waterquality))
 
 ```{r}
 #preprocessing pulire dati con '#NUM!'
-ind = which(waterquality == "#NUM!")
-ind
+#ind = which(waterquality == "#NUM!")
+#ind
+```
+
+```{r}
+ 
+waterquality_pre <- waterquality[!(waterquality$is_safe =="#NUM!"),]
 ```
 
 ```{r}
 #conversione variabili
-waterquality$ammonia = num(waterquality$ammonia)
+#aterquality$ammonia = num(waterquality$ammonia)
 waterquality$is_safe = factor(waterquality$is_safe)
 ```
 
