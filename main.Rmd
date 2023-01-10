@@ -14,85 +14,89 @@ library(neuralnet)
 
 ```{r}
 #import csv
-card.trans_data_tot = read.csv("card_transdata.csv")
+waterquality = read.csv("waterQuality.csv")
 ```
 
 ```{r}
-set.seed(33)
-card.trans_data = card.trans_data_tot[sample(1:nrow(card.trans_data_tot), nrow(card.trans_data_tot)/100),]
+#preprocessing se duplicati e nulli
+sum(duplicated(waterquality))
+sum(is.na(waterquality))
 ```
 
 ```{r}
-#conversion dataset
-card.trans_data$repeat_retailer = factor(card.trans_data$repeat_retailer)
-card.trans_data$used_chip = factor(card.trans_data$used_chip)
-card.trans_data$used_pin_number = factor(card.trans_data$used_pin_number)
-card.trans_data$online_order = factor(card.trans_data$online_order)
-card.trans_data$fraud = factor(card.trans_data$fraud)
+#preprocessing pulire dati con '#NUM!'
+ind = which(waterquality == "#NUM!")
+ind
 ```
 
 ```{r}
-head(card.trans_data)
+#conversione variabili
+waterquality$ammonia = num(waterquality$ammonia)
+waterquality$is_safe = factor(waterquality$is_safe)
 ```
 
 ```{r}
-card.trans_data %>%
+head(waterquality)
+```
+
+```{r}
+waterquality %>%
   filter( distance_from_home<max(distance_from_home) ) %>%
   ggplot( aes(x=distance_from_home)) +
     geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)
 ```
 
 ```{r}
-card.trans_data %>%
+waterquality %>%
   filter( distance_from_last_transaction<max(distance_from_last_transaction) ) %>%
   ggplot( aes(x=distance_from_last_transaction)) +
     geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)
 ```
 
 ```{r}
-card.trans_data %>%
+waterquality %>%
   filter( ratio_to_median_purchase_price<max(ratio_to_median_purchase_price) ) %>%
   ggplot( aes(x=ratio_to_median_purchase_price)) +
     geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)
 ```
 
 ```{r}
-ggplot(data.frame(card.trans_data$repeat_retailer), aes(x=card.trans_data$repeat_retailer)) +
+ggplot(data.frame(waterquality$repeat_retailer), aes(x=waterquality$repeat_retailer)) +
   geom_bar()
 ```
 
 ```{r}
-  ggplot(data.frame(card.trans_data$used_chip), aes(x=card.trans_data$used_chip)) +
+  ggplot(data.frame(waterquality$used_chip), aes(x=waterquality$used_chip)) +
   geom_bar()
 ```
 
 ```{r}
-ggplot(data.frame(card.trans_data$used_pin_number), aes(x=card.trans_data$used_pin_number)) +
+ggplot(data.frame(waterquality$used_pin_number), aes(x=waterquality$used_pin_number)) +
   geom_bar()
 ```
 
 ```{r}
-ggplot(data.frame(card.trans_data$online_order), aes(x=card.trans_data$online_order)) +
+ggplot(data.frame(waterquality$online_order), aes(x=waterquality$online_order)) +
   geom_bar()
 ```
 
 ```{r}
-ggplot(data.frame(card.trans_data$fraud), aes(x=card.trans_data$fraud)) +
+ggplot(data.frame(waterquality$fraud), aes(x=waterquality$fraud)) +
   geom_bar()
 ```
 
 ```{r}
 #sistemare ggploot
-sub <- subset(card.trans_data, select = c(distance_from_home, distance_from_last_transaction, ratio_to_median_purchase_price))
+sub <- subset(waterquality, select = c(distance_from_home, distance_from_last_transaction, ratio_to_median_purchase_price))
 
-card.trans_data %>%
+waterquality %>%
   filter( ratio_to_median_purchase_price < max(ratio_to_median_purchase_price) ) %>%
   ggplot(sub, aes(x=sub, y=len)) + 
   geom_boxplot()
 ```
 
 ```{r}
-describe(card.trans_data)
+describe(waterquality)
 ```
 
 ```{r}
@@ -107,29 +111,22 @@ ggplot(data=NULL, aes(x=labels, y=sizes, fill=labels)) +
 ```
 
 ```{r}
-#preprocessing se duplicati e nulli
-s = duplicated(card.trans_data)
-sum(s)
-sum(is.na(card.trans_data))
-```
-
-```{r}
 #scatter matrix tra var continue
 my_cols <- c("#00AFBB", "#E7B800", "#FC4E07")  
-pairs(card.trans_data[,1:3], pch = 19,  cex = 0.5,
-      col = my_cols[card.trans_data$fraud],
+pairs(waterquality[,1:3], pch = 19,  cex = 0.5,
+      col = my_cols[waterquality$fraud],
       lower.panel=NULL)
 ```
 
 ```{r}
 #corr matrix
-card.cor = cor(card.trans_data[,1:3])
+card.cor = cor(waterquality[,1:3])
 corrplot(card.cor)
 ```
 
 ```{r}
 #relazione se è frode usando torta
-sub.fraud = card.trans_data[which(card.trans_data$fraud == 1),]
+sub.fraud = waterquality[which(waterquality$fraud == 1),]
 sub.nrow = nrow(sub.fraud)
 for(i in 4:7){
   sub.zero = length(sub.fraud[which(sub.fraud[,i] == 0), i])
@@ -140,13 +137,13 @@ for(i in 4:7){
   lbls <- paste(lbls, pct) # add percents to labels
   lbls <- paste(lbls,"%",sep="") # ad % to labels
   pie(slices,labels = lbls, col=rainbow(length(lbls)),
-   main=colnames(card.trans_data)[i])
+   main=colnames(waterquality)[i])
 }
 #se c'è stata una frode, sicuramente è perché non c'era il pin
 ```
 
 ```{r}
-sub.nofraud = card.trans_data[which(card.trans_data$fraud == 0),]
+sub.nofraud = waterquality[which(waterquality$fraud == 0),]
 sub.nonrow = nrow(sub.nofraud)
 for(i in 4:7){
   sub.zero = length(sub.nofraud[which(sub.nofraud[,i] == 0), i])
@@ -157,7 +154,7 @@ for(i in 4:7){
   lbls <- paste(lbls, pct) # add percents to labels
   lbls <- paste(lbls,"%",sep="") # ad % to labels
   pie(slices,labels = lbls, col=rainbow(length(lbls)),
-   main=colnames(card.trans_data)[i])
+   main=colnames(waterquality)[i])
 }
 ```
 
@@ -182,9 +179,9 @@ quantile.cast <- function(column){
 
 ```{r}
 for(i in (1:3)){
-  qc = quantile.cast(card.trans_data[,i])
+  qc = quantile.cast(waterquality[,i])
   qcf = factor(qc, levels = c(0, 1, 2, 3))
-  card.trans_data[paste(colnames(card.trans_data)[i],"_d", sep="")] = qcf
+  waterquality[paste(colnames(waterquality)[i],"_d", sep="")] = qcf
 }
 ```
 
@@ -198,7 +195,7 @@ return(list(train=train, test=test)) }
 ```
 
 ```{r}
-allset= split.data(card.trans_data, s = 300)
+allset= split.data(waterquality, s = 300)
 trainset= allset$train
 testset= allset$test
 prop.table(table(trainset$fraud))
