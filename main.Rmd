@@ -41,36 +41,32 @@ waterquality_pre$is_safe = factor(waterquality_pre$is_safe)
 ```
 
 ```{r}
-head(waterquality)
+head(waterquality_pre)
 ```
 
 ```{r}
-sapply(waterquality, class)
+sapply(waterquality_pre, class)
 ```
-
 
 ```{r}
-describe(waterquality)
+describe(waterquality_pre)
 ```
-
 
 ```{r}
-dim(waterquality)
+dim(waterquality_pre)
 ```
-
 
 ```{r}
 ggplot(data.frame(waterquality_pre$is_safe), aes(x=waterquality_pre$is_safe)) +
   geom_bar()
 ```
+
 ```{r}
 waterquality_pre %>%
   filter( uranium < max(uranium) ) %>%
   ggplot( aes(x=uranium)) +
     geom_density(fill="#69b3a2", color="#e9ecef")
 ```
-
-
 
 ```{r}
 waterquality %>%
@@ -192,30 +188,30 @@ for(i in 4:7){
 ```
 
 ```{r}
-quantile.cast <- function(column){
-  max = summary(column)[[6]]
-  first_q = summary(column)[[2]]
-  second_q = summary(column)[[3]]
-  third_q = summary(column)[[5]]
-  
-  q = c(first_q, second_q, third_q, max)
-  tmp_col = rep(0, length(column))
-  
-  for(i in c(1:3)){
-    indexes = which(column > q[i] && column <= q[i+1])
-    tmp_col[indexes] = i
-  }
-  
-  return(tmp_col)
-}
+# quantile.cast <- function(column){
+#   max = summary(column)[[6]]
+#   first_q = summary(column)[[2]]
+#   second_q = summary(column)[[3]]
+#   third_q = summary(column)[[5]]
+#   
+#   q = c(first_q, second_q, third_q, max)
+#   tmp_col = rep(0, length(column))
+#   
+#   for(i in c(1:3)){
+#     indexes = which(column > q[i] && column <= q[i+1])
+#     tmp_col[indexes] = i
+#   }
+#   
+#   return(tmp_col)
+# }
 ```
 
 ```{r}
-for(i in (1:3)){
-  qc = quantile.cast(waterquality[,i])
-  qcf = factor(qc, levels = c(0, 1, 2, 3))
-  waterquality[paste(colnames(waterquality)[i],"_d", sep="")] = qcf
-}
+# for(i in (1:3)){
+#   qc = quantile.cast(waterquality[,i])
+#   qcf = factor(qc, levels = c(0, 1, 2, 3))
+#   waterquality[paste(colnames(waterquality)[i],"_d", sep="")] = qcf
+# }
 ```
 
 ```{r}
@@ -228,17 +224,16 @@ return(list(train=train, test=test)) }
 ```
 
 ```{r}
-allset= split.data(waterquality, s = 300)
+allset= split.data(waterquality_pre, s = 300)
 trainset= allset$train
 testset= allset$test
-prop.table(table(trainset$fraud))
+prop.table(table(trainset$is_safe))
 ```
 
 ```{r}
 set.seed(35)
-train.tree = trainset[c(1:8)]
-modeltree = rpart(fraud ~ ., 
-                  data=train.tree, 
+modeltree = rpart(is_safe ~ ., 
+                  data=trainset, 
                   method = "class")
 ```
 
@@ -251,12 +246,12 @@ fancyRpartPlot(modeltree)
 ```
 
 ```{r}
-test.tree = testset[c(1:7)]
+test.tree = testset[,!names(testset) %in% c("is_safe")]
 testset$Prediction <- predict(modeltree, test.tree, type = "class")
 ```
 
 ```{r}
-confusionmatrix.tree = table(testset$fraud, testset$Prediction)
+confusionmatrix.tree = table(testset$is_safe, testset$Prediction)
 sum(diag(confusionmatrix.tree))/sum(confusionmatrix.tree)
 
 ```
@@ -270,7 +265,7 @@ plotcp(modeltree)
 ```
 
 ```{r}
-prunedDecisionTree = prune(modeltree, cp=.02)
+prunedDecisionTree = prune(modeltree, cp=.016)
 ```
 
 ```{r}
@@ -279,7 +274,7 @@ fancyRpartPlot(prunedDecisionTree)
 
 ```{r}
 testset$PredictionPR <- predict(prunedDecisionTree, test.tree, type = "class")
-confusionmatrix.prunedtree = table(testset$fraud, testset$PredictionPR)
+confusionmatrix.prunedtree = table(testset$is_safe, testset$PredictionPR)
 sum(diag(confusionmatrix.prunedtree))/sum(confusionmatrix.prunedtree)
 ```
 
