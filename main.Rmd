@@ -36,8 +36,8 @@ waterquality_pre <- waterquality[!(waterquality$is_safe =="#NUM!"),]
 
 ```{r}
 #conversione variabili
-#aterquality$ammonia = num(waterquality$ammonia)
-waterquality$is_safe = factor(waterquality$is_safe)
+waterquality_pre$ammonia = as.numeric(waterquality_pre$ammonia)
+waterquality_pre$is_safe = factor(waterquality_pre$is_safe)
 ```
 
 ```{r}
