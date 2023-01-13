@@ -279,7 +279,54 @@ sum(diag(confusionmatrix.prunedtree))/sum(confusionmatrix.prunedtree)
 ```
 
 ```{r}
-network = neuralnet(fraud ~ ., train.tree, hidden=4)
+```
+
+```{r}
+svm.model = svm(is_safe ~ ., data=trainset, kernel='linear', cost=1, scale=TRUE) 
+```
+
+```{r}
+print(svm.model)
+```
+
+```{r}
+test_svm = testset[,!names(testset) %in% c("is_safe","Prediction","PredictionPR")]
+```
+
+```{r}
+svm.pred = predict(svm.model, test_svm)
+
+```
+
+```{r}
+svm.table=table(svm.pred, testset$is_safe)
+svm.table
+```
+
+```{r}
+tuned = tune.svm(is_safe ~ ., data = trainset,kernel='linear',
+cost=c(10,0.1,1,0.01))
+```
+
+```{r}
+svm.pred = predict(tuned$best.model, test_svm)
+```
+
+```{r}
+svm.table=table(svm.pred, testset$is_safe)
+svm.table
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
 ```
 
 ```{r}
