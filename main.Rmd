@@ -9,7 +9,10 @@ library(caret)
 library(plyr)
 library(rpart)
 library(rattle)
-library(neuralnet)
+library(ROCR)
+library(FactoMineR)
+library(factoextra)
+library(C50)
 ```
 
 ```{r}
@@ -21,12 +24,6 @@ waterquality = read.csv("waterQuality.csv")
 #preprocessing se duplicati e nulli
 sum(duplicated(waterquality))
 sum(is.na(waterquality))
-```
-
-```{r}
-#preprocessing pulire dati con '#NUM!'
-#ind = which(waterquality == "#NUM!")
-#ind
 ```
 
 ```{r}
@@ -188,30 +185,37 @@ for(i in 4:7){
 ```
 
 ```{r}
-# quantile.cast <- function(column){
-#   max = summary(column)[[6]]
-#   first_q = summary(column)[[2]]
-#   second_q = summary(column)[[3]]
-#   third_q = summary(column)[[5]]
-#   
-#   q = c(first_q, second_q, third_q, max)
-#   tmp_col = rep(0, length(column))
-#   
-#   for(i in c(1:3)){
-#     indexes = which(column > q[i] && column <= q[i+1])
-#     tmp_col[indexes] = i
-#   }
-#   
-#   return(tmp_col)
-# }
+res.pca <- PCA(waterquality_pre[,!names(waterquality_pre) %in% c("is_safe")], graph = FALSE)
+eig.val <- get_eigenvalue(res.pca)
+eig.val
 ```
 
 ```{r}
-# for(i in (1:3)){
-#   qc = quantile.cast(waterquality[,i])
-#   qcf = factor(qc, levels = c(0, 1, 2, 3))
-#   waterquality[paste(colnames(waterquality)[i],"_d", sep="")] = qcf
-# }
+res.pca <- PCA(waterquality_pre[,!names(waterquality_pre) %in% c("is_safe")], graph = FALSE, ncp = 10)
+```
+
+```{r}
+fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
+```
+
+```{r}
+var <- get_pca_var(res.pca)
+var$coord
+```
+
+```{r}
+fviz_pca_var(res.pca, col.var = "black")
+```
+
+```{r}
+ind <- get_pca_ind(res.pca)
+ind$coord
+```
+
+```{r}
+fviz_pca_ind(res.pca, col.ind = 'cos2', gradient.cols = c('#00AFBB', '#E7B800', '#FC4E07'),
+repel = TRUE # Avoid text overlapping (slow if many points)
+)
 ```
 
 ```{r}
@@ -224,7 +228,12 @@ return(list(train=train, test=test)) }
 ```
 
 ```{r}
-allset= split.data(waterquality_pre, s = 300)
+dataframe_pca=as.data.frame(ind$coord)
+dataframe_pca$is_safe = waterquality_pre$is_safe
+```
+
+```{r}
+allset= split.data(dataframe_pca, s = 300)
 trainset= allset$train
 testset= allset$test
 prop.table(table(trainset$is_safe))
@@ -265,7 +274,7 @@ plotcp(modeltree)
 ```
 
 ```{r}
-prunedDecisionTree = prune(modeltree, cp=.016)
+prunedDecisionTree = prune(modeltree, cp=.018)
 ```
 
 ```{r}
@@ -274,15 +283,12 @@ fancyRpartPlot(prunedDecisionTree)
 
 ```{r}
 testset$PredictionPR <- predict(prunedDecisionTree, test.tree, type = "class")
-confusionmatrix.prunedtree = table(testset$is_safe, testset$PredictionPR)
-sum(diag(confusionmatrix.prunedtree))/sum(confusionmatrix.prunedtree)
+result.treePR = confusionMatrix(testset$PredictionPR, testset[,c("is_safe")], mode = "prec_recall")
+result.treePR
 ```
 
 ```{r}
-```
-
-```{r}
-svm.model = svm(is_safe ~ ., data=trainset, kernel='linear', cost=1, scale=TRUE) 
+svm.model = svm(is_safe ~ ., data=trainset, kernel='radial', cost=1, scale=TRUE) 
 ```
 
 ```{r}
@@ -299,36 +305,46 @@ svm.pred = predict(svm.model, test_svm)
 ```
 
 ```{r}
-svm.table=table(svm.pred, testset$is_safe)
-svm.table
+result.svm = confusionMatrix(svm.pred, testset$is_safe, mode = "prec_recall")
+result.svm
 ```
 
 ```{r}
-tuned = tune.svm(is_safe ~ ., data = trainset,kernel='linear',
+tuned = tune.svm(is_safe ~ ., data = trainset,kernel='radial',
 cost=c(10,0.1,1,0.01))
 ```
 
 ```{r}
-svm.pred = predict(tuned$best.model, test_svm)
+svmT.pred = predict(tuned$best.model, test_svm)
 ```
 
 ```{r}
-svm.table=table(svm.pred, testset$is_safe)
-svm.table
+result.svmT = confusionMatrix(svmT.pred, testset$is_safe, mode = "prec_recall")
+result.svmT
 ```
 
 ```{r}
+pred.treePR.prob = predict(prunedDecisionTree, test.tree, type = "prob")
+prob.treePR = attr(pred.treePR.prob, "probabilities")
+pred.treePR.roc = prob.treePR[, 2] 
+```
+
+```{r}
+pred.rocr = prediction(pred.treePR.roc, testset$is_safe) 
 
 ```
 
 ```{r}
-
+tuned = tune.svm(is_safe ~ ., data = trainset,kernel='radial',
+cost=c(10,0.1,1,0.01), prob = TRUE)
+pred.svmT.prob = predict(tuned$best.model, test.tree, probability=TRUE)
+prob.svmT = attr(pred.svmT.prob, "probabilities")
+pred.svmT.roc = prob.svmT[, 2] 
 ```
 
 ```{r}
-
-```
-
-```{r}
+pred.rocr.svmT = prediction(pred.svmT.roc, testset$is_safe  ) 
+perf.rocr.svmT = performance(pred.rocr.svmT, measure = 'auc', x.measure = 'cutoff')
+perf.tpr.rocr.svmT = performance(perf.rocr.svmT, "tpr","fpr") 
 
 ```
