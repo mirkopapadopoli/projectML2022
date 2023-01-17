@@ -13,6 +13,7 @@ library(ROCR)
 library(FactoMineR)
 library(factoextra)
 library(C50)
+library(pROC)
 ```
 
 ```{r}
@@ -200,7 +201,6 @@ fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
 
 ```{r}
 var <- get_pca_var(res.pca)
-var$coord
 ```
 
 ```{r}
@@ -209,7 +209,7 @@ fviz_pca_var(res.pca, col.var = "black")
 
 ```{r}
 ind <- get_pca_ind(res.pca)
-ind$coord
+
 ```
 
 ```{r}
@@ -241,9 +241,7 @@ prop.table(table(trainset$is_safe))
 
 ```{r}
 set.seed(35)
-modeltree = rpart(is_safe ~ ., 
-                  data=trainset, 
-                  method = "class")
+modeltree = rpart(is_safe ~ ., data=trainset, method = "class")
 ```
 
 ```{r}
@@ -312,10 +310,11 @@ result.svm
 ```{r}
 tuned = tune.svm(is_safe ~ ., data = trainset,kernel='radial',
 cost=c(10,0.1,1,0.01))
+svmT = tuned$best.model
 ```
 
 ```{r}
-svmT.pred = predict(tuned$best.model, test_svm)
+svmT.pred = predict(svmT, test_svm)
 ```
 
 ```{r}
@@ -325,19 +324,24 @@ result.svmT
 
 ```{r}
 pred.treePR.prob = predict(prunedDecisionTree, test.tree, type = "prob")
-prob.treePR = attr(pred.treePR.prob, "probabilities")
-pred.treePR.roc = prob.treePR[, 2] 
+pred.treePR.roc = pred.treePR.prob[, 2] 
 ```
 
 ```{r}
-pred.rocr = prediction(pred.treePR.roc, testset$is_safe) 
-
+pred.rocr.treePR = prediction(pred.treePR.roc, testset$is_safe) 
+perf.rocr.treePR = performance(pred.rocr.treePR, measure = "auc", x.measure = "cutoff")
+perf.tpr.rocr.treePR = performance(pred.rocr.treePR, "tpr","fpr")
 ```
 
 ```{r}
-tuned = tune.svm(is_safe ~ ., data = trainset,kernel='radial',
+plot(perf.tpr.rocr.treePR, colorize=T,main=paste("AUC:",(perf.rocr.treePR@y.values))) 
+abline(a=0, b=1)
+```
+
+```{r}
+tuned2 = tune.svm(is_safe ~ ., data = trainset,kernel='radial',
 cost=c(10,0.1,1,0.01), prob = TRUE)
-pred.svmT.prob = predict(tuned$best.model, test.tree, probability=TRUE)
+pred.svmT.prob = predict(tuned2$best.model, test.tree, probability=TRUE)
 prob.svmT = attr(pred.svmT.prob, "probabilities")
 pred.svmT.roc = prob.svmT[, 2] 
 ```
@@ -345,6 +349,60 @@ pred.svmT.roc = prob.svmT[, 2]
 ```{r}
 pred.rocr.svmT = prediction(pred.svmT.roc, testset$is_safe  ) 
 perf.rocr.svmT = performance(pred.rocr.svmT, measure = 'auc', x.measure = 'cutoff')
-perf.tpr.rocr.svmT = performance(perf.rocr.svmT, "tpr","fpr") 
+perf.tpr.rocr.svmT = performance(pred.rocr.svmT, "tpr","fpr") 
 
+```
+
+```{r}
+plot(perf.tpr.rocr.svmT, colorize=T,main=paste("AUC:",(perf.rocr.svmT@y.values)))
+abline(a=0, b=1)
+```
+
+```{r}
+opt.cut = function(perf, pred){
+ cut.ind = mapply(FUN=function(x, y, p){
+ d = (x - 0)^2 + (y-1)^2
+ ind = which(d == min(d))
+ c(sensitivity = y[[ind]], specificity = 1-x[[ind]],
+ cutoff = p[[ind]])
+ }, perf@x.values, perf@y.values, pred@cutoffs)
+}
+```
+
+```{r}
+print(opt.cut(perf.tpr.rocr.svmT, pred.rocr.svmT))
+```
+
+```{r}
+control = trainControl(method = "repeatedcv", number = 10,repeats = 3,
+classProbs = TRUE, summaryFunction = twoClassSummary)
+```
+
+```{r}
+comp_models_roc = function(trainset, meth, control, testset, color, added){
+  model= train(make.names(is_safe) ~ ., data = trainset, method = meth, metric =
+"ROC", trControl = control)
+  probs = predict(model, testset, testset[,! names(testset) %in% c("is_safe")], type = "prob")
+  ROC = roc(response = testset[,c("is_safe")], predictor = probs$yes,
+  levels = levels(testset[,c("is_safe")]))
+  plot(ROC,type="S", col=color, add = added)
+  ROC
+  return(model)
+}
+```
+
+```{r}
+control = trainControl(method = "repeatedcv", number = 10,repeats = 3,
+classProbs = TRUE, summaryFunction = twoClassSummary)
+
+comp_svm = comp_models_roc(trainset, "svmRadial", control,  testset[,! names(testset) %in% c("Prediction", "PredictionPR")], "blue", FALSE)
+
+#comp_tree = comp_models_roc(trainset, "rpart", control,  testset[,! names(testset) %in% c("Prediction", "PredictionPR")], "green", TRUE)
+```
+
+```{r}
+control = trainControl(method = "repeatedcv", number = 10,repeats = 3,
+classProbs = TRUE, summaryFunction = twoClassSummary)
+svm.modelcm= train(make.names(is_safe) ~ ., data = trainset, method = "svmRadial", metric =
+"ROC", trControl = control)
 ```
