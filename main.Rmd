@@ -382,12 +382,12 @@ classProbs = TRUE, summaryFunction = twoClassSummary)
 comp_models_roc = function(trainset, meth, control, testset, color, added){
   model= train(make.names(is_safe) ~ ., data = trainset, method = meth, metric =
 "ROC", trControl = control)
-  probs = predict(model, testset, testset[,! names(testset) %in% c("is_safe")], type = "prob")
+  probs = predict(model, testset[,! names(testset) %in% c("is_safe")], type = "prob")
+  colnames(probs)[1] ="no"
+  colnames(probs)[2] ="yes"
   ROC = roc(response = testset[,c("is_safe")], predictor = probs$yes,
-  levels = levels(testset[,c("is_safe")]))
-  plot(ROC,type="S", col=color, add = added)
-  ROC
-  return(model)
+  levels = levels(testset[,c("is_safe")]), direction = ">")
+  return(ROC)
 }
 ```
 
@@ -395,14 +395,35 @@ comp_models_roc = function(trainset, meth, control, testset, color, added){
 control = trainControl(method = "repeatedcv", number = 10,repeats = 3,
 classProbs = TRUE, summaryFunction = twoClassSummary)
 
-comp_svm = comp_models_roc(trainset, "svmRadial", control,  testset[,! names(testset) %in% c("Prediction", "PredictionPR")], "blue", FALSE)
+set.seed(33)
 
-#comp_tree = comp_models_roc(trainset, "rpart", control,  testset[,! names(testset) %in% c("Prediction", "PredictionPR")], "green", TRUE)
+comp_tree = comp_models_roc(trainset, "rpart", control,  testset[,! names(testset) %in% c("Prediction", "PredictionPR")], "green", TRUE)
+plot(comp_tree,type="S", col="blue")
+
+#comp_svm = comp_models_roc(trainset, "svmRadial", control,  testset[,! names(testset) %in% c("Prediction", "PredictionPR")], "blue", FALSE)
+#plot(comp_svm,add = TRUE, col="green")
 ```
 
 ```{r}
-control = trainControl(method = "repeatedcv", number = 10,repeats = 3,
-classProbs = TRUE, summaryFunction = twoClassSummary)
-svm.modelcm= train(make.names(is_safe) ~ ., data = trainset, method = "svmRadial", metric =
-"ROC", trControl = control)
+comp_svm[2]
+comp_tree[2]
+```
+
+```{r}
+cv.values = resamples(list(svm=svm.model, rpart = rpart.model))
+summary(cv.values)
+```
+
+```{r}
+dotplot(cv.values, metric = "ROC") 
+
+```
+
+```{r}
+bwplot(cv.values, layout = c(3, 1)) 
+
+```
+
+```{r}
+splom(cv.values,metric="ROC")
 ```
