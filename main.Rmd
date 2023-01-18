@@ -185,6 +185,8 @@ for(i in 4:7){
 }
 ```
 
+PARTE PCA
+
 ```{r}
 res.pca <- PCA(waterquality_pre[,!names(waterquality_pre) %in% c("is_safe")], graph = FALSE)
 eig.val <- get_eigenvalue(res.pca)
@@ -232,6 +234,8 @@ dataframe_pca=as.data.frame(ind$coord)
 dataframe_pca$is_safe = waterquality_pre$is_safe
 ```
 
+PARTE DECISION TREE
+
 ```{r}
 allset= split.data(dataframe_pca, s = 300)
 trainset= allset$train
@@ -240,21 +244,83 @@ prop.table(table(trainset$is_safe))
 ```
 
 ```{r}
-set.seed(35)
-modeltree = rpart(is_safe ~ ., data=trainset, method = "class")
+train_models = function(dataframe, grid, tipo, s = 44){
+
+  set.seed(s)
+  # Define the number of folds
+  k = 5
+  
+  # Split the data into k folds
+  folds = createFolds(dataframe$is_safe, k = k, returnTrain = TRUE)
+  
+  # Define an empty list to store the models
+  models = list()
+  
+  # Loop through the grid of parameter values
+  for (i in 1:nrow(grid)) {
+      # Define an empty vector to store the accuracy
+      accuracy = numeric()
+      # Loop through the k-folds
+      for (j in 1:k) {
+          # Get the training and testing sets
+          train_ind = folds[[j]]
+          test_ind = -train_ind
+          train_data = dataframe[train_ind, ]
+          test_data = dataframe[test_ind, ]
+        
+          # Fit the model
+          if(tipo == "rpart")
+          {
+            model = rpart(is_safe ~ ., 
+                             data = train_data, 
+                             method = "class",
+                             control = rpart.control(
+                               minsplit = grid[i, "minsplit"],
+                               maxdepth = grid[i, "maxdepth"]))
+          }
+          else{
+            model = svm(is_safe ~ ., 
+                        data=train_data,
+                        kernel = "radial", 
+                        cost = grid[i, "C"],
+                        scale=TRUE)
+          }
+        
+          # Make predictions on the test data
+          predictions = predict(model, test_data, type = "class")
+        
+          # Calculate the accuracy
+          accuracy[j] = mean(predictions == test_data$is_safe)
+      }
+    
+      # Store the model and its mean accuracy in the list
+      models[[i]] = list(model = model, mean_accuracy = mean(accuracy))
+  }
+  
+  # Find the model with the highest mean accuracy
+  best_model = models[[which.max(sapply(models, function(x) x$mean_accuracy))]]
+  
+  # View the best model
+  return(best_model$model)
+}
 ```
 
 ```{r}
-modeltree
+grid_tree = expand.grid(minsplit = c(2, 4), maxdepth = c(3, 5, 7, 9))
+model.tree = train_models(trainset, grid_tree, "rpart", 42)
 ```
 
 ```{r}
-fancyRpartPlot(modeltree)
+model.tree
+```
+
+```{r}
+fancyRpartPlot(model.tree)
 ```
 
 ```{r}
 test.tree = testset[,!names(testset) %in% c("is_safe")]
-testset$Prediction <- predict(modeltree, test.tree, type = "class")
+testset$Prediction <- predict(model.tree, test.tree, type = "class")
 ```
 
 ```{r}
@@ -264,29 +330,33 @@ sum(diag(confusionmatrix.tree))/sum(confusionmatrix.tree)
 ```
 
 ```{r}
-printcp(modeltree)
+printcp(model.tree)
 ```
 
 ```{r}
-plotcp(modeltree)
+plotcp(model.tree)
 ```
 
 ```{r}
-prunedDecisionTree = prune(modeltree, cp=.018)
+model.treePR = prune(model.tree, cp=.017)
 ```
 
 ```{r}
-fancyRpartPlot(prunedDecisionTree)
+fancyRpartPlot(model.treePR)
 ```
 
 ```{r}
-testset$PredictionPR <- predict(prunedDecisionTree, test.tree, type = "class")
+testset$PredictionPR <- predict(model.treePR, test.tree, type = "class")
 result.treePR = confusionMatrix(testset$PredictionPR, testset[,c("is_safe")], mode = "prec_recall")
 result.treePR
 ```
 
+PARTE SVM
+
 ```{r}
-svm.model = svm(is_safe ~ ., data=trainset, kernel='radial', cost=1, scale=TRUE) 
+grid_svm = expand.grid(C = c(1))
+svm.model = train_models(trainset, grid_svm, "svm", 42)
+#svm.model = svm(is_safe ~ ., data=trainset, kernel='radial', cost=1, scale=TRUE) 
 ```
 
 ```{r}
@@ -294,11 +364,11 @@ print(svm.model)
 ```
 
 ```{r}
-test_svm = testset[,!names(testset) %in% c("is_safe","Prediction","PredictionPR")]
+test.svm = testset[,!names(testset) %in% c("is_safe","Prediction","PredictionPR")]
 ```
 
 ```{r}
-svm.pred = predict(svm.model, test_svm)
+svm.pred = predict(svm.model, test.svm)
 
 ```
 
@@ -308,19 +378,23 @@ result.svm
 ```
 
 ```{r}
-tuned = tune.svm(is_safe ~ ., data = trainset,kernel='radial',
-cost=c(10,0.1,1,0.01))
-svmT = tuned$best.model
+#tuned = tune.svm(is_safe ~ ., data = trainset,kernel='radial',
+#cost=c(10,0.1,1,0.01))
+grid_svmT = expand.grid(C = c(0.1, 1, 10, 100))
+svmT.model = train_models(trainset, grid_svmT, "svm", 42)
+#svmT = tuned$best.model
 ```
 
 ```{r}
-svmT.pred = predict(svmT, test_svm)
+svmT.pred = predict(svmT.model, test.svm)
 ```
 
 ```{r}
 result.svmT = confusionMatrix(svmT.pred, testset$is_safe, mode = "prec_recall")
 result.svmT
 ```
+
+PARTE ROC E AUC
 
 ```{r}
 pred.treePR.prob = predict(prunedDecisionTree, test.tree, type = "prob")
