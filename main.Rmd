@@ -1,19 +1,33 @@
 ```{r}
 #import library
 library(e1071)
+install.packages(e1071)
 library(ggplot2)
+install.packages(ggplot2)
 library(dplyr)
+install.packages(dplyr)
 library(Hmisc)
+install.packages(Hmisc)
 library(corrplot)
+install.packages(corrplot)
 library(caret)
+install.packages(caret)
 library(plyr)
+install.packages(plyr)
 library(rpart)
+install.packages(rpart)
 library(rattle)
+install.packages(rattle)
 library(ROCR)
+install.packages(ROCR)
 library(FactoMineR)
+install.packages(FactoMineR)
 library(factoextra)
+install.packages(factoextra)
 library(C50)
+install.packages(C50)
 library(pROC)
+install.packages(pROC)
 ```
 
 ```{r}
@@ -55,134 +69,53 @@ dim(waterquality_pre)
 ```
 
 ```{r}
-ggplot(data.frame(waterquality_pre$is_safe), aes(x=waterquality_pre$is_safe)) +
-  geom_bar()
+ggplot(data.frame(waterquality_pre$is_safe), aes(x=waterquality_pre$is_safe)) + geom_bar()
 ```
 
 ```{r}
-waterquality_pre %>%
-  filter( uranium < max(uranium) ) %>%
-  ggplot( aes(x=uranium)) +
-    geom_density(fill="#69b3a2", color="#e9ecef")
+
+par(mfrow = c(1, 4))
+
+for(i in names(waterquality_pre)[1:20]){
+  hist(waterquality_pre[[i]], main = paste("Hist of", i)) 
+}
+
 ```
 
 ```{r}
-waterquality %>%
-  filter( distance_from_home<max(distance_from_home) ) %>%
-  ggplot( aes(x=distance_from_home)) +
-    geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)
+col_names <- names(waterquality_pre)[1:20]
+par(mfrow = c(1, 5))
+
+for(i in col_names) {
+  boxplot(scale(waterquality_pre[[i]]), col = "orange", main = paste("Boxplot of", i))
+}
+
 ```
 
 ```{r}
-waterquality %>%
-  filter( distance_from_last_transaction<max(distance_from_last_transaction) ) %>%
-  ggplot( aes(x=distance_from_last_transaction)) +
-    geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)
+col_names <- names(waterquality_pre)[1:20]
+par(mfrow = c(1, 5))
+
+for(i in col_names) {
+  ggplot(waterquality_pre, aes(x = colnames(waterquality_pre)[i], fill = is_safe, color = is_safe)) + 
+    geom_density(alpha = 0.5) + 
+    ggtitle(paste("Density of", i))
+}
 ```
 
 ```{r}
-waterquality %>%
-  filter( ratio_to_median_purchase_price<max(ratio_to_median_purchase_price) ) %>%
-  ggplot( aes(x=ratio_to_median_purchase_price)) +
-    geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)
-```
-
-```{r}
-ggplot(data.frame(waterquality$repeat_retailer), aes(x=waterquality$repeat_retailer)) +
-  geom_bar()
-```
-
-```{r}
-  ggplot(data.frame(waterquality$used_chip), aes(x=waterquality$used_chip)) +
-  geom_bar()
-```
-
-```{r}
-ggplot(data.frame(waterquality$used_pin_number), aes(x=waterquality$used_pin_number)) +
-  geom_bar()
-```
-
-```{r}
-ggplot(data.frame(waterquality$online_order), aes(x=waterquality$online_order)) +
-  geom_bar()
-```
-
-```{r}
-ggplot(data.frame(waterquality$fraud), aes(x=waterquality$fraud)) +
-  geom_bar()
-```
-
-```{r}
-#sistemare ggploot
-sub <- subset(waterquality, select = c(distance_from_home, distance_from_last_transaction, ratio_to_median_purchase_price))
-
-waterquality %>%
-  filter( ratio_to_median_purchase_price < max(ratio_to_median_purchase_price) ) %>%
-  ggplot(sub, aes(x=sub, y=len)) + 
-  geom_boxplot()
-```
-
-```{r}
-describe(waterquality)
-```
-
-```{r}
-#camviare sizes
-sizes <- c(35044,10000)
-labels <- c("No Fraud","Fraud")
-
-ggplot(data=NULL, aes(x=labels, y=sizes, fill=labels)) +
-  geom_bar(stat="identity") +
-  labs(title="What Percentage of Transactions Using Chip and Password are Fraud Transactions?", fill="") +
-  theme(legend.position="none")
-```
-
-```{r}
-#scatter matrix tra var continue
-my_cols <- c("#00AFBB", "#E7B800", "#FC4E07")  
-pairs(waterquality[,1:3], pch = 19,  cex = 0.5,
-      col = my_cols[waterquality$fraud],
-      lower.panel=NULL)
+ggplot(waterquality_pre, aes(x = waterquality_pre$ammonia, fill = is_safe, color = is_safe)) + 
+    geom_density(alpha = 0.5) + 
+    ggtitle(paste("Density of", names(waterquality_pre)[1])
+    )
 ```
 
 ```{r}
 #corr matrix
-card.cor = cor(waterquality[,1:3])
-corrplot(card.cor)
-```
+water.cor = cor(waterquality_pre[,1:20])
+diag(water.cor) = 0 
+corrplot(water.cor, type = "lower")
 
-```{r}
-#relazione se è frode usando torta
-sub.fraud = waterquality[which(waterquality$fraud == 1),]
-sub.nrow = nrow(sub.fraud)
-for(i in 4:7){
-  sub.zero = length(sub.fraud[which(sub.fraud[,i] == 0), i])
-  sub.one = sub.nrow - sub.zero
-  slices <- c(sub.zero, sub.one)
-  lbls <- c("non c'e'", "c'e'")
-  pct <- round(slices/sum(slices)*100)
-  lbls <- paste(lbls, pct) # add percents to labels
-  lbls <- paste(lbls,"%",sep="") # ad % to labels
-  pie(slices,labels = lbls, col=rainbow(length(lbls)),
-   main=colnames(waterquality)[i])
-}
-#se c'è stata una frode, sicuramente è perché non c'era il pin
-```
-
-```{r}
-sub.nofraud = waterquality[which(waterquality$fraud == 0),]
-sub.nonrow = nrow(sub.nofraud)
-for(i in 4:7){
-  sub.zero = length(sub.nofraud[which(sub.nofraud[,i] == 0), i])
-  sub.one = sub.nonrow - sub.zero
-  slices <- c(sub.zero, sub.one)
-  lbls <- c("non c'e'", "c'e'")
-  pct <- round(slices/sum(slices)*100)
-  lbls <- paste(lbls, pct) # add percents to labels
-  lbls <- paste(lbls,"%",sep="") # ad % to labels
-  pie(slices,labels = lbls, col=rainbow(length(lbls)),
-   main=colnames(waterquality)[i])
-}
 ```
 
 PARTE PCA
