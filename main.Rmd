@@ -111,47 +111,10 @@ ggplot(waterquality_pre, aes(x = waterquality_pre$ammonia, fill = is_safe, color
 ```
 
 ```{r}
-describe(waterquality)
-```
-
-```{r}
 #corr matrix
-card.cor = cor(waterquality[,1:3])
-corrplot(card.cor)
-```
-
-```{r}
-#relazione se è frode usando torta
-sub.fraud = waterquality[which(waterquality$fraud == 1),]
-sub.nrow = nrow(sub.fraud)
-for(i in 4:7){
-  sub.zero = length(sub.fraud[which(sub.fraud[,i] == 0), i])
-  sub.one = sub.nrow - sub.zero
-  slices <- c(sub.zero, sub.one)
-  lbls <- c("non c'e'", "c'e'")
-  pct <- round(slices/sum(slices)*100)
-  lbls <- paste(lbls, pct) # add percents to labels
-  lbls <- paste(lbls,"%",sep="") # ad % to labels
-  pie(slices,labels = lbls, col=rainbow(length(lbls)),
-   main=colnames(waterquality)[i])
-}
-#se c'è stata una frode, sicuramente è perché non c'era il pin
-```
-
-```{r}
-sub.nofraud = waterquality[which(waterquality$fraud == 0),]
-sub.nonrow = nrow(sub.nofraud)
-for(i in 4:7){
-  sub.zero = length(sub.nofraud[which(sub.nofraud[,i] == 0), i])
-  sub.one = sub.nonrow - sub.zero
-  slices <- c(sub.zero, sub.one)
-  lbls <- c("non c'e'", "c'e'")
-  pct <- round(slices/sum(slices)*100)
-  lbls <- paste(lbls, pct) # add percents to labels
-  lbls <- paste(lbls,"%",sep="") # ad % to labels
-  pie(slices,labels = lbls, col=rainbow(length(lbls)),
-   main=colnames(waterquality)[i])
-}
+card.cor = cor(waterquality_pre[,1:20])
+diag(card.cor) = 0
+corrplot(card.cor, type = "lower")
 ```
 
 PARTE PCA
@@ -252,8 +215,7 @@ train_models = function(dataframe, grid, tipo, s = 44){
             model = svm(is_safe ~ ., 
                         data=train_data,
                         kernel = grid[i, "kernel"],
-                        cost = grid[i, "C"],
-                        scale=TRUE)
+                        cost = grid[i, "C"])
           }
         
           # Make predictions on the test data
