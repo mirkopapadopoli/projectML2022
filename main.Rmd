@@ -69,11 +69,11 @@ dim(waterquality_pre)
 ```
 
 ```{r}
-ggplot(data.frame(waterquality_pre$is_safe), aes(x=waterquality_pre$is_safe)) + geom_bar()
+ggplot(data.frame(waterquality_pre$is_safe), aes(x=waterquality_pre$is_safe)) +
+  geom_bar()
 ```
 
 ```{r}
-
 par(mfrow = c(1, 4))
 
 for(i in names(waterquality_pre)[1:20]){
@@ -111,11 +111,47 @@ ggplot(waterquality_pre, aes(x = waterquality_pre$ammonia, fill = is_safe, color
 ```
 
 ```{r}
-#corr matrix
-water.cor = cor(waterquality_pre[,1:20])
-diag(water.cor) = 0 
-corrplot(water.cor, type = "lower")
+describe(waterquality)
+```
 
+```{r}
+#corr matrix
+card.cor = cor(waterquality[,1:3])
+corrplot(card.cor)
+```
+
+```{r}
+#relazione se è frode usando torta
+sub.fraud = waterquality[which(waterquality$fraud == 1),]
+sub.nrow = nrow(sub.fraud)
+for(i in 4:7){
+  sub.zero = length(sub.fraud[which(sub.fraud[,i] == 0), i])
+  sub.one = sub.nrow - sub.zero
+  slices <- c(sub.zero, sub.one)
+  lbls <- c("non c'e'", "c'e'")
+  pct <- round(slices/sum(slices)*100)
+  lbls <- paste(lbls, pct) # add percents to labels
+  lbls <- paste(lbls,"%",sep="") # ad % to labels
+  pie(slices,labels = lbls, col=rainbow(length(lbls)),
+   main=colnames(waterquality)[i])
+}
+#se c'è stata una frode, sicuramente è perché non c'era il pin
+```
+
+```{r}
+sub.nofraud = waterquality[which(waterquality$fraud == 0),]
+sub.nonrow = nrow(sub.nofraud)
+for(i in 4:7){
+  sub.zero = length(sub.nofraud[which(sub.nofraud[,i] == 0), i])
+  sub.one = sub.nonrow - sub.zero
+  slices <- c(sub.zero, sub.one)
+  lbls <- c("non c'e'", "c'e'")
+  pct <- round(slices/sum(slices)*100)
+  lbls <- paste(lbls, pct) # add percents to labels
+  lbls <- paste(lbls,"%",sep="") # ad % to labels
+  pie(slices,labels = lbls, col=rainbow(length(lbls)),
+   main=colnames(waterquality)[i])
+}
 ```
 
 PARTE PCA
@@ -127,7 +163,7 @@ eig.val
 ```
 
 ```{r}
-res.pca <- PCA(waterquality_pre[,!names(waterquality_pre) %in% c("is_safe")], graph = FALSE, ncp = 10)
+res.pca <- PCA(waterquality_pre[,!names(waterquality_pre) %in% c("is_safe")], graph = FALSE, ncp = 10, scale = TRUE)
 ```
 
 ```{r}
@@ -170,7 +206,7 @@ dataframe_pca$is_safe = waterquality_pre$is_safe
 PARTE DECISION TREE
 
 ```{r}
-allset= split.data(dataframe_pca, s = 300)
+allset= split.data(dataframe_pca, s = 333)
 trainset= allset$train
 testset= allset$test
 prop.table(table(trainset$is_safe))
@@ -181,11 +217,11 @@ train_models = function(dataframe, grid, tipo, s = 44){
 
   set.seed(s)
   # Define the number of folds
-  k = 5
+  k = 10
   
   # Split the data into k folds
-  folds = createFolds(dataframe$is_safe, k = k, returnTrain = TRUE)
-  
+  folds = createFolds(dataframe$is_safe, k = k)
+  str(folds)
   # Define an empty list to store the models
   models = list()
   
@@ -198,6 +234,7 @@ train_models = function(dataframe, grid, tipo, s = 44){
           # Get the training and testing sets
           train_ind = folds[[j]]
           test_ind = -train_ind
+          
           train_data = dataframe[train_ind, ]
           test_data = dataframe[test_ind, ]
         
@@ -214,16 +251,16 @@ train_models = function(dataframe, grid, tipo, s = 44){
           else{
             model = svm(is_safe ~ ., 
                         data=train_data,
-                        kernel = "radial", 
+                        kernel = grid[i, "kernel"],
                         cost = grid[i, "C"],
                         scale=TRUE)
           }
         
           # Make predictions on the test data
           predictions = predict(model, test_data, type = "class")
-        
-          # Calculate the accuracy
-          accuracy[j] = mean(predictions == test_data$is_safe)
+          
+          confusion.matrix.model = table(test_data$is_safe, predictions)
+          accuracy[j] = sum(diag(confusion.matrix.model))/sum(confusion.matrix.model)
       }
     
       # Store the model and its mean accuracy in the list
@@ -240,7 +277,7 @@ train_models = function(dataframe, grid, tipo, s = 44){
 
 ```{r}
 grid_tree = expand.grid(minsplit = c(2, 4), maxdepth = c(3, 5, 7, 9))
-model.tree = train_models(trainset, grid_tree, "rpart", 42)
+model.tree = train_models(trainset, grid_tree, "rpart", 47)
 ```
 
 ```{r}
@@ -271,7 +308,7 @@ plotcp(model.tree)
 ```
 
 ```{r}
-model.treePR = prune(model.tree, cp=.017)
+model.treePR = prune(model.tree, cp=.05)
 ```
 
 ```{r}
@@ -287,7 +324,7 @@ result.treePR
 PARTE SVM
 
 ```{r}
-grid_svm = expand.grid(C = c(1))
+grid_svm = expand.grid(C = c(1), kernel = c("radial"))
 svm.model = train_models(trainset, grid_svm, "svm", 42)
 #svm.model = svm(is_safe ~ ., data=trainset, kernel='radial', cost=1, scale=TRUE) 
 ```
@@ -313,13 +350,17 @@ result.svm
 ```{r}
 #tuned = tune.svm(is_safe ~ ., data = trainset,kernel='radial',
 #cost=c(10,0.1,1,0.01))
-grid_svmT = expand.grid(C = c(0.1, 1, 10, 100))
+grid_svmT = expand.grid(C = c(1, 10, 100), kernel = c("radial", "polynomial", "linear"))
 svmT.model = train_models(trainset, grid_svmT, "svm", 42)
 #svmT = tuned$best.model
 ```
 
 ```{r}
 svmT.pred = predict(svmT.model, test.svm)
+```
+
+```{r}
+print(svmT.model)
 ```
 
 ```{r}
@@ -330,12 +371,37 @@ result.svmT
 PARTE ROC E AUC
 
 ```{r}
-pred.treePR.prob = predict(prunedDecisionTree, test.tree, type = "prob")
-pred.treePR.roc = pred.treePR.prob[, 2] 
+generate_roc_single_model = function(model, test, targetoption, typemodel){
+  pred.model.prob = predict(model, test[,!names(test) %in% c("is_safe")], type = "prob")
+  print(pred.model.prob)
+  pred.model.prob.targoption = pred.model.prob[, targetoption]
+  
+  pred.rocr.model = prediction(pred.model.prob.targoption, test$is_safe)
+  perf.rocr.model = performance(pred.rocr.model, measure = "auc", x.measure = "cutoff")
+  
+  perf.targoption.rocr.model = performance(pred.rocr.model, "tpr", "fpr")
+  plot(perf.targoption.rocr.model, colorize = T, main=paste("AUC:",(perf.rocr.model@y.values)))
+  abline(a=0, b=1)
+}
 ```
 
 ```{r}
-pred.rocr.treePR = prediction(pred.treePR.roc, testset$is_safe) 
+generate_roc_single_model(model.treePR, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 2, "rpart")
+```
+
+```{r}
+generate_roc_single_model(model.treePR, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 1, "rpart")
+```
+
+```{r}
+pred.treePR.prob = predict(model.treePR, test.tree, type = "prob")
+pred.treePR.prob.safe = pred.treePR.prob[, 2] 
+pred.treePR.prob.not_safe = pred.treePR.prob[, 1]
+```
+
+```{r}
+#pred.rocr.treePR = prediction(pred.treePR.roc, testset$is_safe) 
+pred.rocr.treePR = prediction(pred.treePR.prob.safe, testset$is_safe) 
 perf.rocr.treePR = performance(pred.rocr.treePR, measure = "auc", x.measure = "cutoff")
 perf.tpr.rocr.treePR = performance(pred.rocr.treePR, "tpr","fpr")
 ```
@@ -343,6 +409,14 @@ perf.tpr.rocr.treePR = performance(pred.rocr.treePR, "tpr","fpr")
 ```{r}
 plot(perf.tpr.rocr.treePR, colorize=T,main=paste("AUC:",(perf.rocr.treePR@y.values))) 
 abline(a=0, b=1)
+```
+
+```{r}
+generate_roc_single_model(svmT.model, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 2, "rpart")
+```
+
+```{r}
+pred.model.prob = predict(svmT.model, testset[,!names(testset) %in% c("is_safe","Prediction","PredictionPR")], probability = T)
 ```
 
 ```{r}
