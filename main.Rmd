@@ -1,48 +1,48 @@
 ```{r}
 #import library
-library(e1071)
 install.packages(e1071)
-library(ggplot2)
+library(e1071)
 install.packages(ggplot2)
-library(dplyr)
+library(ggplot2)
 install.packages(dplyr)
-library(Hmisc)
+library(dplyr)
 install.packages(Hmisc)
-library(corrplot)
+library(Hmisc)
 install.packages(corrplot)
-library(caret)
+library(corrplot)
 install.packages(caret)
-library(plyr)
+library(caret)
 install.packages(plyr)
-library(rpart)
+library(plyr)
 install.packages(rpart)
-library(rattle)
+library(rpart)
 install.packages(rattle)
-library(ROCR)
+library(rattle)
 install.packages(ROCR)
-library(FactoMineR)
+library(ROCR)
 install.packages(FactoMineR)
-library(factoextra)
+library(FactoMineR)
 install.packages(factoextra)
-library(C50)
+library(factoextra)
 install.packages(C50)
-library(pROC)
+library(C50)
 install.packages(pROC)
+library(pROC)
 ```
 
 ```{r}
-#import csv
+#importo il dataset dal file csv
 waterquality = read.csv("waterQuality.csv")
 ```
 
 ```{r}
- #preprocessing se duplicati e nulli
+ #controllo se i dati sono duplicati e nulli
 sum(duplicated(waterquality))
 sum(is.na(waterquality))
 ```
 
 ```{r}
- 
+ #rimozioni di righe con il valore #NUM!
 waterquality_pre <- waterquality[!(waterquality$is_safe =="#NUM!"),]
 ```
 
@@ -53,29 +53,36 @@ waterquality_pre$is_safe = factor(waterquality_pre$is_safe)
 ```
 
 ```{r}
+#mostro le prime 6 righe del dataset
 head(waterquality_pre)
 ```
 
 ```{r}
+#mostro le classi delle colonne del dataset
 sapply(waterquality_pre, class)
 ```
 
 ```{r}
+#ottengo un analisi dei ogni singola colonna 
 describe(waterquality_pre)
 ```
 
 ```{r}
+#vedo la dimensione del dataset
 dim(waterquality_pre)
 ```
 
 ```{r}
+#plotto il numero di istanze con target = 1 e = 0
 ggplot(data.frame(waterquality_pre$is_safe), aes(x=waterquality_pre$is_safe)) +
   geom_bar()
 ```
 
 ```{r}
+#divido in 4 rettangoli l'area di visualizzazione
 par(mfrow = c(1, 4))
 
+#mostro tutti gli istogrammi per ogni feature, mettendone una per rettangolo
 for(i in names(waterquality_pre)[1:20]){
   hist(waterquality_pre[[i]], main = paste("Hist of", i)) 
 }
@@ -83,9 +90,12 @@ for(i in names(waterquality_pre)[1:20]){
 ```
 
 ```{r}
+#ottengo i nomi del dataset, tranne della target
 col_names <- names(waterquality_pre)[1:20]
+#divido in 5 rettangoli la zona di visualizzazione
 par(mfrow = c(1, 5))
 
+#mostro i boxplot per ogni feature
 for(i in col_names) {
   boxplot(scale(waterquality_pre[[i]]), col = "orange", main = paste("Boxplot of", i))
 }
@@ -108,6 +118,22 @@ ggplot(waterquality_pre, aes(x = waterquality_pre$ammonia, fill = is_safe, color
     geom_density(alpha = 0.5) + 
     ggtitle(paste("Density of", names(waterquality_pre)[1])
     )
+```
+
+```{r}
+f_ggplot <- function(v_column){
+    ggplot(data = waterquality_pre, 
+           aes(group = waterquality_pre$is_safe, 
+               fill = is_safe)) +
+    geom_density(aes_string(x = v_column),
+                 alpha = 0.4) +
+    labs(title = paste("Title for variable", v_column))
+}
+```
+
+```{r}
+coll = colnames(waterquality_pre[,!names(waterquality_pre) %in% c("is_safe")])
+lapply(coll, f_ggplot)
 ```
 
 ```{r}
@@ -214,7 +240,8 @@ train_models = function(dataframe, grid, tipo, s = 44){
             model = svm(is_safe ~ ., 
                         data=train_data,
                         kernel = grid[i, "kernel"],
-                        cost = grid[i, "C"])
+                        cost = grid[i, "C"],
+                        epsilon = grid[i, "epsilon"])
           }
         
           # Make predictions on the test data
@@ -237,12 +264,20 @@ train_models = function(dataframe, grid, tipo, s = 44){
 ```
 
 ```{r}
-grid_tree = expand.grid(minsplit = c(2, 4), maxdepth = c(3, 5, 7, 9))
-model.tree = train_models(trainset, grid_tree, "rpart", 47)
+#######
+# train_control = trainControl(method="repeatedcv", number=10, repeats=3)
 ```
 
 ```{r}
-model.tree
+set.seed(33)
+control = trainControl(method = "repeatedcv", number = 10,repeats = 3)
+train.tree.model= train(is_safe ~ ., data = trainset, method = "rpart",  trControl = control)
+model.tree = train.tree.model$finalModel
+# model.tree = train(is_safe ~ ., data = trainset, method="rpart", trcontrol= train_control)
+```
+
+```{r}
+train.tree.model
 ```
 
 ```{r}
@@ -261,31 +296,33 @@ sum(diag(confusionmatrix.tree))/sum(confusionmatrix.tree)
 ```
 
 ```{r}
-printcp(model.tree)
+# plotcp(model.tree$finalModel)
 ```
 
 ```{r}
-plotcp(model.tree)
+# model.treePR = prune(model.tree$finalModel, cp=.05)
 ```
 
 ```{r}
-model.treePR = prune(model.tree, cp=.05)
+# fancyRpartPlot(model.treePR)
 ```
 
 ```{r}
-fancyRpartPlot(model.treePR)
+# testset$PredictionPR <- predict(model.treePR, test.tree, type = "class")
+# result.treePR = confusionMatrix(testset$PredictionPR, testset[,c("is_safe")], mode = "prec_recall")
+# result.treePR
 ```
 
 ```{r}
-testset$PredictionPR <- predict(model.treePR, test.tree, type = "class")
-result.treePR = confusionMatrix(testset$PredictionPR, testset[,c("is_safe")], mode = "prec_recall")
-result.treePR
+testset$PredictionT <- predict(model.tree, test.tree, type = "class")
+result.tree = confusionMatrix(testset$Prediction, testset[,c("is_safe")], mode = "prec_recall")
+result.tree
 ```
 
 PARTE SVM
 
 ```{r}
-grid_svm = expand.grid(C = c(1), kernel = c("radial"))
+grid_svm = expand.grid(C = c(1), kernel = c("radial"), epsilon = c(0.1))
 svm.model = train_models(trainset, grid_svm, "svm", 42)
 #svm.model = svm(is_safe ~ ., data=trainset, kernel='radial', cost=1, scale=TRUE) 
 ```
@@ -309,11 +346,8 @@ result.svm
 ```
 
 ```{r}
-#tuned = tune.svm(is_safe ~ ., data = trainset,kernel='radial',
-#cost=c(10,0.1,1,0.01))
-grid_svmT = expand.grid(C = c(1, 10, 100), kernel = c("radial", "polynomial", "linear"))
+grid_svmT = expand.grid(C = c(1, 10, 100), kernel = c("radial", "polynomial", "linear"), epsilon = c(0.01, 0.001))
 svmT.model = train_models(trainset, grid_svmT, "svm", 42)
-#svmT = tuned$best.model
 ```
 
 ```{r}
@@ -340,7 +374,7 @@ generate_roc_single_model = function(model, test, targetoption, typemodel){
   pred.rocr.model = prediction(pred.model.prob.targoption, test$is_safe)
   perf.rocr.model = performance(pred.rocr.model, measure = "auc", x.measure = "cutoff")
   
-  perf.targoption.rocr.model = performance(pred.rocr.model, "tpr", "fpr")
+  perf.targoption.rocr.model = performance(pred.rocr.model, "tnr", "fnr")
   plot(perf.targoption.rocr.model, colorize = T, main=paste("AUC:",(perf.rocr.model@y.values)))
   abline(a=0, b=1)
 }
@@ -422,22 +456,20 @@ classProbs = TRUE, summaryFunction = twoClassSummary)
 
 ```{r}
 comp_models_roc = function(trainset, meth, control, testset, color, added){
-  model= train(make.names(is_safe) ~ ., data = trainset, method = meth, metric =
-"ROC", trControl = control)
+  model= train(make.names(is_safe) ~ ., data = trainset, method = meth,  trControl = control)
   probs = predict(model, testset[,! names(testset) %in% c("is_safe")], type = "prob")
   colnames(probs)[1] ="no"
   colnames(probs)[2] ="yes"
-  ROC = roc(response = testset[,c("is_safe")], predictor = probs$yes,
+  ROC = roc(response = testset[,c("is_safe")], predictor = probs$no,
   levels = levels(testset[,c("is_safe")]), direction = ">")
   return(ROC)
 }
 ```
 
 ```{r}
+set.seed(33)
 control = trainControl(method = "repeatedcv", number = 10,repeats = 3,
 classProbs = TRUE, summaryFunction = twoClassSummary)
-
-set.seed(33)
 
 comp_tree = comp_models_roc(trainset, "rpart", control,  testset[,! names(testset) %in% c("Prediction", "PredictionPR")], "green", TRUE)
 plot(comp_tree,type="S", col="blue")

@@ -1,0 +1,204 @@
+```{r}
+install.packages(e1071)
+library(e1071)
+install.packages(ggplot2)
+library(ggplot2)
+install.packages(dplyr)
+library(dplyr)
+install.packages(Hmisc)
+library(Hmisc)
+install.packages(corrplot)
+library(corrplot)
+install.packages(caret)
+library(caret)
+install.packages(plyr)
+library(plyr)
+install.packages(rpart)
+library(rpart)
+install.packages(rattle)
+library(rattle)
+install.packages(ROCR)
+library(ROCR)
+install.packages(FactoMineR)
+library(FactoMineR)
+install.packages(factoextra)
+library(factoextra)
+install.packages(C50)
+library(C50)
+install.packages(pROC)
+library(pROC)
+```
+
+```{r}
+train_models = function(dataframe, grid, tipo, s = 44){
+
+  set.seed(s)
+  # Define the number of folds
+  k = 10
+  
+  # Split the data into k folds
+  folds = createFolds(dataframe$is_safe, k = k)
+  str(folds)
+  # Define an empty list to store the models
+  models = list()
+  
+  # Loop through the grid of parameter values
+  for (i in 1:nrow(grid)) {
+      # Define an empty vector to store the accuracy
+      accuracy = numeric()
+      # Loop through the k-folds
+      for (j in 1:k) {
+          # Get the training and testing sets
+          train_ind = folds[[j]]
+          test_ind = -train_ind
+          
+          train_data = dataframe[train_ind, ]
+          test_data = dataframe[test_ind, ]
+        
+          # Fit the model
+          if(tipo == "rpart")
+          {
+            model = rpart(is_safe ~ ., 
+                             data = train_data, 
+                             method = "class",
+                             control = rpart.control(
+                               minsplit = grid[i, "minsplit"],
+                               maxdepth = grid[i, "maxdepth"]))
+          }
+          else{
+            model = svm(is_safe ~ ., 
+                        data=train_data,
+                        kernel = grid[i, "kernel"],
+                        cost = grid[i, "C"],
+                        epsilon = grid[i, "epsilon"])
+          }
+        
+          # Make predictions on the test data
+          predictions = predict(model, test_data, type = "class")
+          
+          confusion.matrix.model = table(test_data$is_safe, predictions)
+          accuracy[j] = sum(diag(confusion.matrix.model))/sum(confusion.matrix.model)
+      }
+    
+      # Store the model and its mean accuracy in the list
+      models[[i]] = list(model = model, mean_accuracy = mean(accuracy))
+  }
+  
+  # Find the model with the highest mean accuracy
+  best_model = models[[which.max(sapply(models, function(x) x$mean_accuracy))]]
+  
+  # View the best model
+  return(best_model$model)
+}
+```
+
+```{r}
+waterquality = read.csv("waterQuality.csv")
+waterquality_pre <- waterquality[!(waterquality$is_safe =="#NUM!"),]
+waterquality_pre$ammonia = as.numeric(waterquality_pre$ammonia)
+waterquality_pre$is_safe = factor(waterquality_pre$is_safe)
+res.pca <- PCA(waterquality_pre[,!names(waterquality_pre) %in% c("is_safe")], graph = FALSE, ncp = 10, scale = TRUE)
+ind <- get_pca_ind(res.pca)
+```
+
+```{r}
+split.data = function(data, p = 0.7, s = 1){
+set.seed(s)
+index = sample(1:dim(data)[1])
+train = data[index[1:floor(dim(data)[1] * p)], ]
+test = data[index[((ceiling(dim(data)[1] * p)) + 1):dim(data)[1]], ]
+return(list(train=train, test=test)) } 
+```
+
+```{r}
+dataframe_pca=as.data.frame(ind$coord)
+dataframe_pca$is_safe = waterquality_pre$is_safe
+```
+
+```{r}
+allset= split.data(dataframe_pca, s = 333)
+trainset= allset$train
+testset= allset$test
+prop.table(table(trainset$is_safe))
+```
+
+TREE CLASSICO
+
+```{r}
+grid.tree = expand.grid(minsplit = c(2), maxdepth = c(5, 7, 10))
+```
+
+```{r}
+tree.model = train_models(trainset, grid.tree, "rpart", 33)
+```
+
+```{r}
+printcp(tree.model)
+```
+
+```{r}
+plotcp(tree.model)
+```
+
+```{r}
+fancyRpartPlot(tree.model)
+```
+
+TREE TRAIN
+
+```{r}
+set.seed(33)
+control = trainControl(method = "repeatedcv", number = 10,repeats = 3)
+train.tree.model= train(is_safe ~ ., data = trainset, method = "rpart",  trControl = control)
+model.treeT = train.tree.model$finalModel
+```
+
+```{r}
+train.tree.model
+```
+
+```{r}
+plot(train.tree.model)
+```
+
+```{r}
+test.tree = testset[,!names(testset) %in% c("is_safe")]
+testset$Prediction <- predict(model.treeT, test.tree, type = "class")
+```
+
+```{r}
+confusionmatrix.tree = table(testset$is_safe, testset$Prediction)
+sum(diag(confusionmatrix.tree))/sum(confusionmatrix.tree)
+```
+
+```{r}
+https://rstudio-pubs-static.s3.amazonaws.com/442284_82321e66af4e49d58adcd897e00bf495.html#the-caret-method
+
+
+```
+
+```{r}
+fancyRpartPlot(model.treeT)
+```
+
+```{r}
+optcp = train.tree.model$bestTune$cp
+optcp
+```
+
+```{r}
+prunedModel <- prune(train.tree.model$finalModel, cp = optcp)
+```
+
+```{r}
+fancyRpartPlot(prunedModel)
+```
+
+```{r}
+testset$PredictionPr <- predict(prunedModel, test.tree, type = "class")
+```
+
+```{r}
+confusionmatrix.treePr = table(testset$is_safe, testset$PredictionPr)
+sum(diag(confusionmatrix.treePr))/sum(confusionmatrix.treePr)
+```
