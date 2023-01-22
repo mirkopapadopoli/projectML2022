@@ -1,5 +1,5 @@
 ```{r}
-#import library
+#import e installazione librerie
 install.packages(e1071)
 library(e1071)
 install.packages(ggplot2)
@@ -31,19 +31,24 @@ library(pROC)
 ```
 
 ```{r}
-#importo il dataset dal file csv
+#import del dataset dal file csv
 waterquality = read.csv("waterQuality.csv")
 ```
 
 ```{r}
- #controllo se i dati sono duplicati e nulli
+#controllo dei dati se sono duplicati e nulli
 sum(duplicated(waterquality))
 sum(is.na(waterquality))
 ```
 
 ```{r}
- #rimozioni di righe con il valore #NUM!
-waterquality_pre <- waterquality[!(waterquality$is_safe =="#NUM!"),]
+#rimozione righe con il valore #NUM!
+waterquality_pre = waterquality[!(waterquality$is_safe =="#NUM!"),]
+```
+
+```{r}
+#mostro le classi delle colonne del dataset per capire se devo fare dei cast
+sapply(waterquality_pre, class)
 ```
 
 ```{r}
@@ -53,27 +58,22 @@ waterquality_pre$is_safe = factor(waterquality_pre$is_safe)
 ```
 
 ```{r}
-#mostro le prime 6 righe del dataset
+#show delle prime 6 righe del dataset
 head(waterquality_pre)
 ```
 
 ```{r}
-#mostro le classi delle colonne del dataset
-sapply(waterquality_pre, class)
-```
-
-```{r}
-#ottengo un analisi dei ogni singola colonna 
+#ottengo un analisi univariata di ogni singola colonna 
 describe(waterquality_pre)
 ```
 
 ```{r}
-#vedo la dimensione del dataset
+#dimensione del dataset
 dim(waterquality_pre)
 ```
 
 ```{r}
-#plotto il numero di istanze con target = 1 e = 0
+#plotto il numero di istanze con target = 1 e target = 0
 ggplot(data.frame(waterquality_pre$is_safe), aes(x=waterquality_pre$is_safe)) +
   geom_bar()
 ```
@@ -84,7 +84,7 @@ par(mfrow = c(1, 4))
 
 #mostro tutti gli istogrammi per ogni feature, mettendone una per rettangolo
 for(i in names(waterquality_pre)[1:20]){
-  hist(waterquality_pre[[i]], main = paste("Hist of", i)) 
+  hist(waterquality_pre[[i]], main = paste("Hist of", i), xlab = i, col = "orange")
 }
 
 ```
@@ -97,47 +97,31 @@ par(mfrow = c(1, 5))
 
 #mostro i boxplot per ogni feature
 for(i in col_names) {
-  boxplot(scale(waterquality_pre[[i]]), col = "orange", main = paste("Boxplot of", i))
+  boxplot(scale(waterquality_pre[[i]]), main = paste("Boxplot of", i),  col = "orange")
 }
 
 ```
 
 ```{r}
-col_names <- names(waterquality_pre)[1:20]
-par(mfrow = c(1, 5))
-
-for(i in col_names) {
-  ggplot(waterquality_pre, aes(x = colnames(waterquality_pre)[i], fill = is_safe, color = is_safe)) + 
-    geom_density(alpha = 0.5) + 
-    ggtitle(paste("Density of", i))
-}
-```
-
-```{r}
-ggplot(waterquality_pre, aes(x = waterquality_pre$ammonia, fill = is_safe, color = is_safe)) + 
-    geom_density(alpha = 0.5) + 
-    ggtitle(paste("Density of", names(waterquality_pre)[1])
-    )
-```
-
-```{r}
+#funzione per la creazione di un grafico con densità
 f_ggplot <- function(v_column){
     ggplot(data = waterquality_pre, 
            aes(group = waterquality_pre$is_safe, 
                fill = is_safe)) +
     geom_density(aes_string(x = v_column),
                  alpha = 0.4) +
-    labs(title = paste("Title for variable", v_column))
+    labs(title = v_column)
 }
 ```
 
 ```{r}
+#mostro il grafico con densità per ogni feature nel dataset
 coll = colnames(waterquality_pre[,!names(waterquality_pre) %in% c("is_safe")])
 lapply(coll, f_ggplot)
 ```
 
 ```{r}
-#corr matrix
+#matrice di correlazione
 card.cor = cor(waterquality_pre[,1:20])
 diag(card.cor) = 0
 corrplot(card.cor, type = "lower")
@@ -146,38 +130,49 @@ corrplot(card.cor, type = "lower")
 PARTE PCA
 
 ```{r}
+#stampa degli autovalori di PCA
 res.pca <- PCA(waterquality_pre[,!names(waterquality_pre) %in% c("is_safe")], graph = FALSE)
-eig.val <- get_eigenvalue(res.pca)
-eig.val
+get_eigenvalue(res.pca)
 ```
 
 ```{r}
+#PCA per prendere solamente i primi 10 autovalori e lo scaling automatico delle features
 res.pca <- PCA(waterquality_pre[,!names(waterquality_pre) %in% c("is_safe")], graph = FALSE, ncp = 10, scale = TRUE)
+get_eigenvalue(res.pca)
 ```
 
 ```{r}
+#grafico che mostra la varianza percentuale delle primi 10 fea
 fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
 ```
 
 ```{r}
+#?
+#?
+#correlazione tra variabili positivamente e negativamente
 var <- get_pca_var(res.pca)
 fviz_pca_var(res.pca, col.var="contrib",
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE # Avoid text overlapping
+             repel = TRUE
              )
 ```
 
 ```{r}
+#?
+#?
 ind <- get_pca_ind(res.pca)
 ```
 
 ```{r}
+#?
+#?
 fviz_pca_ind(res.pca, col.ind = 'cos2', gradient.cols = c('#00AFBB', '#E7B800', '#FC4E07'),
 repel = TRUE # Avoid text overlapping (slow if many points)
 )
 ```
 
 ```{r}
+#funzione per splittare un dataset in train e test
 split.data = function(data, p = 0.7, s = 1){
 set.seed(s)
 index = sample(1:dim(data)[1])
@@ -187,6 +182,7 @@ return(list(train=train, test=test)) }
 ```
 
 ```{r}
+#conversione in dataframe le coordinate degli indiviudi di PCA
 dataframe_pca=as.data.frame(ind$coord)
 dataframe_pca$is_safe = waterquality_pre$is_safe
 ```
@@ -194,6 +190,7 @@ dataframe_pca$is_safe = waterquality_pre$is_safe
 PARTE DECISION TREE
 
 ```{r}
+#split del dataset e comprensione sulla proporzione tra label 0 e label 1
 allset= split.data(dataframe_pca, s = 333)
 trainset= allset$train
 testset= allset$test
@@ -201,112 +198,35 @@ prop.table(table(trainset$is_safe))
 ```
 
 ```{r}
-train_models = function(dataframe, grid, tipo, s = 44){
-
-  set.seed(s)
-  # Define the number of folds
-  k = 10
-  
-  # Split the data into k folds
-  folds = createFolds(dataframe$is_safe, k = k)
-  str(folds)
-  # Define an empty list to store the models
-  models = list()
-  
-  # Loop through the grid of parameter values
-  for (i in 1:nrow(grid)) {
-      # Define an empty vector to store the accuracy
-      accuracy = numeric()
-      # Loop through the k-folds
-      for (j in 1:k) {
-          # Get the training and testing sets
-          train_ind = folds[[j]]
-          test_ind = -train_ind
-          
-          train_data = dataframe[train_ind, ]
-          test_data = dataframe[test_ind, ]
-        
-          # Fit the model
-          if(tipo == "rpart")
-          {
-            model = rpart(is_safe ~ ., 
-                             data = train_data, 
-                             method = "class",
-                             control = rpart.control(
-                               minsplit = grid[i, "minsplit"],
-                               maxdepth = grid[i, "maxdepth"]))
-          }
-          else{
-            model = svm(is_safe ~ ., 
-                        data=train_data,
-                        kernel = grid[i, "kernel"],
-                        cost = grid[i, "C"],
-                        epsilon = grid[i, "epsilon"])
-          }
-        
-          # Make predictions on the test data
-          predictions = predict(model, test_data, type = "class")
-          
-          confusion.matrix.model = table(test_data$is_safe, predictions)
-          accuracy[j] = sum(diag(confusion.matrix.model))/sum(confusion.matrix.model)
-      }
-    
-      # Store the model and its mean accuracy in the list
-      models[[i]] = list(model = model, mean_accuracy = mean(accuracy))
-  }
-  
-  # Find the model with the highest mean accuracy
-  best_model = models[[which.max(sapply(models, function(x) x$mean_accuracy))]]
-  
-  # View the best model
-  return(best_model$model)
-}
-```
-
-```{r}
-#######
-# train_control = trainControl(method="repeatedcv", number=10, repeats=3)
-```
-
-```{r}
+#impostazione della k fold repeatedCV e esecuzione della train(con gridsearch e pruning automatico) per rpart
 set.seed(33)
 control = trainControl(method = "repeatedcv", number = 10,repeats = 3)
 train.tree.model= train(is_safe ~ ., data = trainset, method = "rpart",  trControl = control)
 model.tree = train.tree.model$finalModel
-# model.tree = train(is_safe ~ ., data = trainset, method="rpart", trcontrol= train_control)
 ```
 
 ```{r}
+#stampa dell'oggetto restituito da train e delle sue performance
 train.tree.model
 ```
 
 ```{r}
+#visualizzazione grafico tra cp e accuracy
+plot(train.tree.model)
+```
+
+```{r}
+#stampa dell'albero
 fancyRpartPlot(model.tree)
 ```
 
 ```{r}
+#prendo le feature del testset
 test.set = testset[,!names(testset) %in% c("is_safe")]
 ```
 
 ```{r}
-# plotcp(model.tree$finalModel)
-```
-
-```{r}
-# model.treePR = prune(model.tree$finalModel, cp=.05)
-```
-
-```{r}
-# fancyRpartPlot(model.treePR)
-```
-
-```{r}
-# testset$PredictionPR <- predict(model.treePR, test.tree, type = "class")
-# result.treePR = confusionMatrix(testset$PredictionPR, testset[,c("is_safe")], mode = "prec_recall")
-# result.treePR
-```
-
-```{r}
+#predict e visualizzazione della matrice di confusione completa per il decision tree
 testset$Prediction <- predict(model.tree, test.set, type = "class")
 result.tree = confusionMatrix(testset$Prediction, testset[,c("is_safe")], mode = "prec_recall")
 result.tree
@@ -315,65 +235,62 @@ result.tree
 PARTE SVM
 
 ```{r}
-# grid_svm = expand.grid(C = c(1), kernel = c("radial"), epsilon = c(0.1))
-# svm.model = train_models(trainset, grid_svm, "svm", 42)
-#svm.model = svm(is_safe ~ ., data=trainset, kernel='radial', cost=1, scale=TRUE) 
-```
-
-```{r}
-# print(svm.model)
-```
-
-```{r}
-# test.svm = testset[,!names(testset) %in% c("is_safe","Prediction","PredictionPR")]
-```
-
-```{r}
-# svm.pred = predict(svm.model, test.svm)
-
-```
-
-```{r}
-# result.svm = confusionMatrix(svm.pred, testset$is_safe, mode = "prec_recall")
-# result.svm
-```
-
-```{r}
-# grid_svmT = expand.grid(C = c(1, 10, 100), kernel = c("radial", "polynomial", "linear"), epsilon = c(0.01, 0.001))
-# svmT.model = train_models(trainset, grid_svmT, "svm", 42)
-```
-
-```{r}
-grid_svmT = expand.grid(C = c(0.1, 1, 10), sigma = c(0.1, 1, 10))
-```
-
-```{r}
+#esecuzione della train(con gridsearch su C e sigma automatica) per svmRadial
 set.seed(33)
-#train.svm.model = train(is_safe ~ ., data = trainset, method = "svmRadial", tuneGrid = grid_svmT,  trControl = control)
 train.svm.model = train(is_safe ~ ., data = trainset, method = "svmRadial",  trControl = control)
 model.svm = train.svm.model$finalModel
 ```
 
 ```{r}
+#stampa dell'oggetto restituito da train e delle sue performance
 train.svm.model
 ```
 
 ```{r}
+#visualizzazione grafico tra C e accuracy
+plot(train.svm.model)
+```
+
+```{r}
+#predizione del test.set con svm
 svm.pred = predict(train.svm.model, test.set)
 ```
 
 ```{r}
+#visualizzazione della matrice di confusione completa per svm radiale
 result.svm = confusionMatrix(svm.pred, testset$is_safe, mode = "prec_recall")
 result.svm
+```
+
+PARTE CALCOLO PRECISION, RECALL E F1
+
+```{r}
+calculate_recall_tot = function(){
+  res.not_safe = confusionMatrix(svm.pred, testset$is_safe, mode = "prec_recall")
+  res.safe = confusioneMatrix(svm.pred, testset$is_safe, mode = "prec_recall", positive = "no")
+  
+  
+}
+```
+
+```{r}
+calculate_precision_tot = function(){
+  
+}
+```
+
+```{r}
+calculte_f1_tot = function(){
+  
+}
 ```
 
 PARTE ROC E AUC PER SINGOLO MODELLO
 
 ```{r}
+#funzione per mostrare con grafico la ROC e la AUC di un modello
 generate_roc_single_model = function(model, test, targetoption, typemodel){
   pred.model.prob = predict(model, test[,!names(test) %in% c("is_safe")], type = "prob")
-  # if(typemodel == "svm")
-  #   pred.model.prob = predict(model,test[, !names(test) %in% c("is_safe")], probability=TRUE) 
 
   print(pred.model.prob)
   pred.model.prob.targoption = pred.model.prob[, targetoption]
@@ -419,52 +336,6 @@ svm.value.roc.t = generate_roc_single_model(train.svm.model.prob, testset[,!name
 
 ```{r}
 svm.value.roc.n = generate_roc_single_model(train.svm.model.prob, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 1, "svm")
-```
-
-```{r}
-# pred.treePR.prob = predict(model.treePR, test.tree, type = "prob")
-# pred.treePR.prob.safe = pred.treePR.prob[, 2] 
-# pred.treePR.prob.not_safe = pred.treePR.prob[, 1]
-```
-
-```{r}
-# #pred.rocr.treePR = prediction(pred.treePR.roc, testset$is_safe) 
-# pred.rocr.treePR = prediction(pred.treePR.prob.safe, testset$is_safe) 
-# perf.rocr.treePR = performance(pred.rocr.treePR, measure = "auc", x.measure = "cutoff")
-# perf.tpr.rocr.treePR = performance(pred.rocr.treePR, "tpr","fpr")
-```
-
-```{r}
-# plot(perf.tpr.rocr.treePR, colorize=T,main=paste("AUC:",(perf.rocr.treePR@y.values))) 
-# abline(a=0, b=1)
-```
-
-```{r}
-# generate_roc_single_model(svmT.model, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 2, "rpart")
-```
-
-```{r}
-# pred.model.prob = predict(svmT.model, testset[,!names(testset) %in% c("is_safe","Prediction","PredictionPR")], probability = T)
-```
-
-```{r}
-# tuned2 = tune.svm(is_safe ~ ., data = trainset,kernel='radial',
-# cost=c(10,0.1,1,0.01), prob = TRUE)
-# pred.svmT.prob = predict(tuned2$best.model, test.tree, probability=TRUE)
-# prob.svmT = attr(pred.svmT.prob, "probabilities")
-# pred.svmT.roc = prob.svmT[, 2] 
-```
-
-```{r}
-# pred.rocr.svmT = prediction(pred.svmT.roc, testset$is_safe  ) 
-# perf.rocr.svmT = performance(pred.rocr.svmT, measure = 'auc', x.measure = 'cutoff')
-# perf.tpr.rocr.svmT = performance(pred.rocr.svmT, "tpr","fpr") 
-
-```
-
-```{r}
-# plot(perf.tpr.rocr.svmT, colorize=T,main=paste("AUC:",(perf.rocr.svmT@y.values)))
-# abline(a=0, b=1)
 ```
 
 PARTE OPT CUT
