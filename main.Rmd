@@ -80,7 +80,7 @@ ggplot(data.frame(waterquality_pre$is_safe), aes(x=waterquality_pre$is_safe)) +
 
 ```{r}
 #divido in 4 rettangoli l'area di visualizzazione
-par(mfrow = c(1, 4))
+par(mfrow = c(1, 5))
 
 #mostro tutti gli istogrammi per ogni feature, mettendone una per rettangolo
 for(i in names(waterquality_pre)[1:20]){
@@ -147,9 +147,7 @@ fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
 ```
 
 ```{r}
-#?
-#?
-#correlazione tra variabili positivamente e negativamente
+#grafico dove si posizionano le covariate nello spazio per mostrare relazione tra variabili e componenti principale
 var <- get_pca_var(res.pca)
 fviz_pca_var(res.pca, col.var="contrib",
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
@@ -164,10 +162,9 @@ ind <- get_pca_ind(res.pca)
 ```
 
 ```{r}
-#?
-#?
+#visualizza come se fossero punti nello spazio, e maggiore è il cos2 più sono qualitativi
 fviz_pca_ind(res.pca, col.ind = 'cos2', gradient.cols = c('#00AFBB', '#E7B800', '#FC4E07'),
-repel = TRUE # Avoid text overlapping (slow if many points)
+repel = TRUE 
 )
 ```
 
@@ -265,48 +262,68 @@ result.svm
 PARTE CALCOLO PRECISION, RECALL E F1
 
 ```{r}
-calculate_recall_tot = function(){
-  res.not_safe = confusionMatrix(svm.pred, testset$is_safe, mode = "prec_recall")
-  res.safe = confusioneMatrix(svm.pred, testset$is_safe, mode = "prec_recall", positive = "no")
+#calcolo recall micro
+calculate_recall_tot = function(res.not_safe, res.safe, tot.num, tot.not_safe, tot.safe){
+  recall.not_safe = res.not_safe$byClass[[6]]
+  recall.safe = res.safe$byClass[[6]]
   
+  lab.safe = (tot.safe / tot.num) * recall.safe
+  lab.not_safe = (tot.not_safe / tot.num) * recall.not_safe
   
+  return(lab.safe + lab.not_safe)
 }
 ```
 
 ```{r}
-calculate_precision_tot = function(){
+#calcolo precision micro
+calculate_precision_tot = function(res.not_safe, res.safe, tot.num, tot.not_safe, tot.safe){
+  precision.not_safe = res.not_safe$byClass[[5]]
+  precision.safe = res.safe$byClass[[5]]
   
+  lab.safe = (tot.safe / tot.num) * precision.safe
+  lab.not_safe = (tot.not_safe / tot.num) * precision.not_safe
+  
+  return(lab.safe + lab.not_safe)
 }
 ```
 
 ```{r}
-calculte_f1_tot = function(){
+#calcolo f1 micro
+calculate_micro_f1 = function(pred, testset){
+   res.not_safe = confusionMatrix(pred, testset$is_safe, mode = "prec_recall")
+  res.safe = confusionMatrix(pred, testset$is_safe, mode = "prec_recall", positive = "1")
   
+  total = sum(res.not_safe$table)
+  tot.s = res.not_safe$table[3] + res.not_safe$table[4]
+  tot.ns = total - tot.s
+  
+  micro_recall = calculate_recall_tot(res.not_safe, res.safe, total, tot.ns, tot.s)
+  micro_precision = calculate_precision_tot(res.not_safe, res.safe, total, tot.ns, tot.s)
+  
+  return (2 * (micro_recall * micro_precision) / (micro_recall + micro_precision))
 }
+```
+
+```{r}
+print(paste("Micro F1 per SVM",calculate_micro_f1(svm.pred, testset)))
+print(paste("Micro F1 per DT",calculate_micro_f1(testset$Prediction, testset)))
 ```
 
 PARTE ROC E AUC PER SINGOLO MODELLO
 
 ```{r}
 #funzione per mostrare con grafico la ROC e la AUC di un modello
-generate_roc_single_model = function(model, test, targetoption, typemodel){
+generate_roc_single_model = function(model, test){
   pred.model.prob = predict(model, test[,!names(test) %in% c("is_safe")], type = "prob")
 
-  print(pred.model.prob)
-  pred.model.prob.targoption = pred.model.prob[, targetoption]
-  print(pred.model.prob.targoption)
-  
+  pred.model.prob.targoption = pred.model.prob[, 2]
+
   pred.rocr.model = prediction(pred.model.prob.targoption, test$is_safe)
   perf.rocr.model = performance(pred.rocr.model, measure = "auc", x.measure = "cutoff")
   
-  if(targetoption == 2){
     tr = "tpr"
     fr = "fpr"
-  }
-  else{
-    tr = "tnr"
-    fr = "fnr"
-  }
+    
   perf.targoption.rocr.model = performance(pred.rocr.model, tr, fr)
   plot(perf.targoption.rocr.model, colorize = T, main=paste("AUC:",(perf.rocr.model@y.values)))
   abline(a=0, b=1)
@@ -316,106 +333,39 @@ generate_roc_single_model = function(model, test, targetoption, typemodel){
 ```
 
 ```{r}
-tree.value.roc.t = generate_roc_single_model(train.tree.model, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 2, "rpart")
+#generazione grafico per roc e auc
+tree.value.roc.t = generate_roc_single_model(train.tree.model, testset[,!names(testset) %in% c("Prediction","PredictionPR")])
 
 ```
 
 ```{r}
-tree.value.roc.n = generate_roc_single_model(train.tree.model, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 1, "rpart")
-```
-
-```{r}
+#allenamneto dell'svm, come la precedente, ma con predizione di probabilità
 set.seed(33)
 control_p = trainControl(method = "repeatedcv", number = 10,repeats = 3, classProbs = TRUE)
 train.svm.model.prob = train(make.names(is_safe) ~ ., data = trainset, method = "svmRadial",  trControl = control_p)
 ```
 
 ```{r}
-svm.value.roc.t = generate_roc_single_model(train.svm.model.prob, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 2, "svm")
-```
-
-```{r}
-svm.value.roc.n = generate_roc_single_model(train.svm.model.prob, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 1, "svm")
-```
-
-PARTE OPT CUT
-
-```{r}
-opt.cut = function(perf, pred){
- cut.ind = mapply(FUN=function(x, y, p){
- d = (x - 0)^2 + (y-1)^2
- ind = which(d == min(d))
- c(sensitivity = y[[ind]], specificity = 1-x[[ind]],
- cutoff = p[[ind]])
- }, perf@x.values, perf@y.values, pred@cutoffs)
-}
-```
-
-```{r}
-print_all_cutoff = function(perf.tpr.rocr, pred.rocr){
-  print(opt.cut(perf.tpr.rocr, pred.rocr))
-  #acc.perf = performance(tree.value.roc.t$pred.rocr, measure = "acc")
-  #plot(acc.perf)
-  #inde = which.max( slot(acc.perf, "y.values")[[1]] )
-  #acc = slot(acc.perf, "y.values")[[1]][inde]
-  #cutoff = slot(acc.perf, "x.values")[[1]][inde]
-  #print(c(accuracy= acc, cutoff = cutoff))
-}
-```
-
-```{r}
-print_all_cutoff(tree.value.roc.t$tr, tree.value.roc.t$pred.rocr)
-```
-
-```{r}
-print_all_cutoff(tree.value.roc.n$tr, tree.value.roc.n$pred.rocr)
-```
-
-```{r}
-print_all_cutoff(svm.value.roc.t$tr, tree.value.roc.n$pred.rocr)
-```
-
-```{r}
-print_all_cutoff(svm.value.roc.n$tr, tree.value.roc.n$pred.rocr)
-```
-
-```{r}
-print(opt.cut(tree.value.roc.t$tr, tree.value.roc.t$pred.rocr))
-```
-
-```{r}
-acc.perf = performance(tree.value.roc.t$pred.rocr, measure = "acc")
-plot(acc.perf)
-```
-
-```{r}
-inde = which.max( slot(acc.perf, "y.values")[[1]] )
-acc = slot(acc.perf, "y.values")[[1]][inde]
-cutoff = slot(acc.perf, "x.values")[[1]][inde]
-print(c(accuracy= acc, cutoff = cutoff))
-
+#generazione di roc e auc
+svm.value.roc.t = generate_roc_single_model(train.svm.model.prob, testset[,!names(testset) %in% c("Prediction","PredictionPR")])
 ```
 
 PARTE COMPARAZIONE MODELLI
 
 ```{r}
-comp_models_roc = function(model, testset, s, targetout){
+#funzione per la comparazione dei modelli sullo stesso grafico
+comp_models_roc = function(model, testset){
   probs = predict(model, testset[,! names(testset) %in% c("is_safe")], type = "prob")
   colnames(probs)[1] ="not_safe"
   colnames(probs)[2] ="safe"
-  if(targetout == 1){
-    ROC = roc(response = testset[,c("is_safe")], predictor = probs$not_safe,
-  levels = levels(testset[,c("is_safe")]))
-  }
-  else{
-      ROC = roc(response = testset[,c("is_safe")], predictor = probs$safe,
-  levels = levels(testset[,c("is_safe")]))
-    }
+  ROC = roc(response = testset[,c("is_safe")], predictor = probs$safe,
+  levels = levels(testset[,c("is_safe")]),  direction = "<")
   return(ROC)
 }
 ```
 
 ```{r}
+#Train dei modelli in mdo tale che predicano con la probabilità
 set.seed(33)
 control_f = trainControl(method = "repeatedcv", number = 10,repeats = 3,
 classProbs = TRUE, summaryFunction = twoClassSummary)
@@ -424,19 +374,22 @@ model.svm.roc = train(make.names(is_safe) ~ ., data = trainset, method = "svmRad
 ```
 
 ```{r}
-comp_tree = comp_models_roc(model.tree.roc, testset[,! names(testset) %in% c("Prediction", "PredictionT")], 33, 2)
+#comparazione dei modelli
+comp_tree = comp_models_roc(model.tree.roc, testset[,! names(testset) %in% c("Prediction", "PredictionT")])
 plot(comp_tree,type="S", col="blue")
 
-comp_svm = comp_models_roc(model.svm.roc, testset[,! names(testset) %in% c("Prediction", "PredictionT")], 33, 2)
+comp_svm = comp_models_roc(model.svm.roc, testset[,! names(testset) %in% c("Prediction", "PredictionT")])
 plot(comp_svm,add = TRUE, col="green")
 ```
 
 ```{r}
+#stampa dei valori di ROC per ogni modelli
 comp_svm
 comp_tree
 ```
 
 ```{r}
+#sommario dei modelli allenati puntando sulla roc
 cv.values = resamples(list(svm=model.svm.roc, rpart = model.tree.roc))
 summary(cv.values)
 ```
