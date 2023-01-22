@@ -285,14 +285,7 @@ fancyRpartPlot(model.tree)
 ```
 
 ```{r}
-test.tree = testset[,!names(testset) %in% c("is_safe")]
-testset$Prediction <- predict(model.tree, test.tree, type = "class")
-```
-
-```{r}
-confusionmatrix.tree = table(testset$is_safe, testset$Prediction)
-sum(diag(confusionmatrix.tree))/sum(confusionmatrix.tree)
-
+test.set = testset[,!names(testset) %in% c("is_safe")]
 ```
 
 ```{r}
@@ -314,7 +307,7 @@ sum(diag(confusionmatrix.tree))/sum(confusionmatrix.tree)
 ```
 
 ```{r}
-testset$PredictionT <- predict(model.tree, test.tree, type = "class")
+testset$Prediction <- predict(model.tree, test.set, type = "class")
 result.tree = confusionMatrix(testset$Prediction, testset[,c("is_safe")], mode = "prec_recall")
 result.tree
 ```
@@ -322,22 +315,51 @@ result.tree
 PARTE SVM
 
 ```{r}
-grid_svm = expand.grid(C = c(1), kernel = c("radial"), epsilon = c(0.1))
-svm.model = train_models(trainset, grid_svm, "svm", 42)
+# grid_svm = expand.grid(C = c(1), kernel = c("radial"), epsilon = c(0.1))
+# svm.model = train_models(trainset, grid_svm, "svm", 42)
 #svm.model = svm(is_safe ~ ., data=trainset, kernel='radial', cost=1, scale=TRUE) 
 ```
 
 ```{r}
-print(svm.model)
+# print(svm.model)
 ```
 
 ```{r}
-test.svm = testset[,!names(testset) %in% c("is_safe","Prediction","PredictionPR")]
+# test.svm = testset[,!names(testset) %in% c("is_safe","Prediction","PredictionPR")]
 ```
 
 ```{r}
-svm.pred = predict(svm.model, test.svm)
+# svm.pred = predict(svm.model, test.svm)
 
+```
+
+```{r}
+# result.svm = confusionMatrix(svm.pred, testset$is_safe, mode = "prec_recall")
+# result.svm
+```
+
+```{r}
+# grid_svmT = expand.grid(C = c(1, 10, 100), kernel = c("radial", "polynomial", "linear"), epsilon = c(0.01, 0.001))
+# svmT.model = train_models(trainset, grid_svmT, "svm", 42)
+```
+
+```{r}
+grid_svmT = expand.grid(C = c(0.1, 1, 10), sigma = c(0.1, 1, 10))
+```
+
+```{r}
+set.seed(33)
+#train.svm.model = train(is_safe ~ ., data = trainset, method = "svmRadial", tuneGrid = grid_svmT,  trControl = control)
+train.svm.model = train(is_safe ~ ., data = trainset, method = "svmRadial",  trControl = control)
+model.svm = train.svm.model$finalModel
+```
+
+```{r}
+train.svm.model
+```
+
+```{r}
+svm.pred = predict(train.svm.model, test.set)
 ```
 
 ```{r}
@@ -345,47 +367,55 @@ result.svm = confusionMatrix(svm.pred, testset$is_safe, mode = "prec_recall")
 result.svm
 ```
 
-```{r}
-grid_svmT = expand.grid(C = c(1, 10, 100), kernel = c("radial", "polynomial", "linear"), epsilon = c(0.01, 0.001))
-svmT.model = train_models(trainset, grid_svmT, "svm", 42)
-```
-
-```{r}
-svmT.pred = predict(svmT.model, test.svm)
-```
-
-```{r}
-print(svmT.model)
-```
-
-```{r}
-result.svmT = confusionMatrix(svmT.pred, testset$is_safe, mode = "prec_recall")
-result.svmT
-```
-
-PARTE ROC E AUC
+PARTE ROC E AUC PER SINGOLO MODELLO
 
 ```{r}
 generate_roc_single_model = function(model, test, targetoption, typemodel){
   pred.model.prob = predict(model, test[,!names(test) %in% c("is_safe")], type = "prob")
+  # if(typemodel == "svm")
+  #   pred.model.prob = predict(model,test[, !names(test) %in% c("is_safe")], probability=TRUE) 
+
   print(pred.model.prob)
   pred.model.prob.targoption = pred.model.prob[, targetoption]
+  print(pred.model.prob.targoption)
   
   pred.rocr.model = prediction(pred.model.prob.targoption, test$is_safe)
   perf.rocr.model = performance(pred.rocr.model, measure = "auc", x.measure = "cutoff")
   
-  perf.targoption.rocr.model = performance(pred.rocr.model, "tnr", "fnr")
+  if(targetoption == 2){
+    tr = "tpr"
+    fr = "fpr"
+  }
+  else{
+    tr = "tnr"
+    fr = "fnr"
+  }
+  perf.targoption.rocr.model = performance(pred.rocr.model, tr, fr)
   plot(perf.targoption.rocr.model, colorize = T, main=paste("AUC:",(perf.rocr.model@y.values)))
   abline(a=0, b=1)
 }
 ```
 
 ```{r}
-generate_roc_single_model(model.treePR, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 2, "rpart")
+generate_roc_single_model(train.tree.model, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 2, "rpart")
 ```
 
 ```{r}
-generate_roc_single_model(model.treePR, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 1, "rpart")
+generate_roc_single_model(train.tree.model, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 1, "rpart")
+```
+
+```{r}
+set.seed(33)
+control_p = trainControl(method = "repeatedcv", number = 10,repeats = 3, classProbs = TRUE)
+train.svm.model.prob = train(make.names(is_safe) ~ ., data = trainset, method = "svmRadial",  trControl = control_p)
+```
+
+```{r}
+generate_roc_single_model(train.svm.model.prob, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 2, "svm")
+```
+
+```{r}
+generate_roc_single_model(train.svm.model.prob, testset[,!names(testset) %in% c("Prediction","PredictionPR")], 1, "svm")
 ```
 
 ```{r}
@@ -434,6 +464,8 @@ plot(perf.tpr.rocr.svmT, colorize=T,main=paste("AUC:",(perf.rocr.svmT@y.values))
 abline(a=0, b=1)
 ```
 
+PARTE OPT CUT
+
 ```{r}
 opt.cut = function(perf, pred){
  cut.ind = mapply(FUN=function(x, y, p){
@@ -448,6 +480,21 @@ opt.cut = function(perf, pred){
 ```{r}
 print(opt.cut(perf.tpr.rocr.svmT, pred.rocr.svmT))
 ```
+
+```{r}
+acc.perf = performance(pred.rocr, measure = "acc")
+plot(acc.perf)
+```
+
+```{r}
+Inde = which.max( slot(acc.perf, "y.values")[[1]] )
+acc = slot(acc.perf, "y.values")[[1]][inde]
+cutoff = slot(acc.perf, "x.values")[[1]][inde]
+print(c(accuracy= acc, cutoff = cutoff))
+
+```
+
+PARTE COMPARAZIONE MODELLI
 
 ```{r}
 control = trainControl(method = "repeatedcv", number = 10,repeats = 3,
